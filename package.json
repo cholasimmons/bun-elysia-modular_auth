@@ -1,0 +1,29 @@
+{
+  "name": "elysia",
+  "version": "1.0.50",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@bogeychan/elysia-logger": "^0.0.13",
+    "@elysiajs/cookie": "^0.7.0",
+    "@elysiajs/graphql-yoga": "^0.7.1",
+    "@elysiajs/html": "^0.7.3",
+    "@elysiajs/jwt": "^0.7.0",
+    "@elysiajs/lucia-auth": "^0.0.0-exp-20230623.312",
+    "@elysiajs/swagger": "^0.7.4",
+    "@lucia-auth/adapter-prisma": "^3.0.2",
+    "@prisma/client": "^5.6.0",
+    "elysia": "^0.7.29",
+    "elysia-helmet": "^1.0.1",
+    "elysia-http-error": "^1.1.2",
+    "elysia-http-status-code": "^1.0.9",
+    "lucia": "^2.7.4"
+  },
+  "devDependencies": {
+    "bun-types": "^1.0.14",
+    "prisma": "^5.6.0"
+  },
+  "module": "src/index.js"
+}

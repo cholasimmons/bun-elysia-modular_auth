@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  // relationMode = "prisma"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String    @id @default(uuid())
+  first_name        String?
+  last_name         String?
+  username          String?   @unique
+  email             String    @unique
+  email_verified    Boolean
+  salt              String
+  hash              String
+  roles             Role[]    @relation(name: "RoleUser")
+  session           Session[]
+  Key               Key[]
+  summary           String?
+  links             Json?
+  location          Json?
+  photo             String?
+//   // publishedArticles Article[] @relation(name: "ArticlesAuthor")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("user")
+}
+
+model Session {
+  id              String    @id @unique
+  user_id         String
+  active_expires  BigInt
+  idle_expires    BigInt
+  user            User      @relation(references: [id], fields:[user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("session")
+}
+
+model Key {
+  id                    String @id @unique
+  hashed_password       String?
+  user_id               String
+  primary               Boolean
+  user                  User @relation(references: [id], fields: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("key")
+} 
+
+model Role {
+  id                Int       @id @default(autoincrement())
+  name              String    @unique @default("Guest")
+  user              User      @relation(name: "RoleUser", fields: [user_id], references: [id])
+  user_id           String
+
+  @@index([user_id])
+  @@map("role")
+}
+
+// model User {
+//   id                String    @id @default(uuid())
+//   name              String?
+//   username          String?    @unique
+//   email             String    @unique
+//   salt              String
+//   hash              String
+//   summary           String?
+//   links             Json?
+//   location          Json?
+//   profileImage      String
+//   // publishedArticles Article[] @relation(name: "ArticlesAuthor")
+//   createdAt         DateTime  @default(now())
+//   updatedAt         DateTime  @updatedAt
+// }
+
+// model Article {
+//   id           String   @id @default(uuid())
+//   title        String
+//   bodyMarkdown String
+//   published    Boolean? @default(false)
+//   mainImage    String?
+//   canonicalUrl String?
+//   description  String
+//   tags         String
+//   author       User     @relation(name: "ArticlesAuthor", fields: [authorId], references: [id])
+//   authorId     String
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @updatedAt
+// }
+model Vehicle{
+  id                Int       @id @default(autoincrement())
+  brand             String    @unique
+  model             String?
+  year              Int?
+  description       String?
+  links             Json?
+  photo             String[]
+  color             String
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
