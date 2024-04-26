@@ -1,115 +1,115 @@
 import { Elysia } from "elysia";
+
+// Configurations
+import consts from "~config/consts";
+
+// Plugins
+import { swagger } from "@elysiajs/swagger";
+import { rateLimit } from "elysia-rate-limit";
+import cron from "@elysiajs/cron";
+// import { logger } from "@grotto/logysia";
+import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
-import swagger from "@elysiajs/swagger";
-import websocketRouter from "./router/websocket.router";
-import authRouter from "~modules/auth";
-import usersRouter from "~modules/users";
-import homeRouter from "./router/home.router";
-import { yoga } from "@elysiajs/graphql-yoga";
-import { yogaDefs } from "~config/graphql";
-import { html } from "@elysiajs/html";
 import cookie from "@elysiajs/cookie";
-import jwt from "@elysiajs/jwt";
-import { logger } from "@bogeychan/elysia-logger";
-import vehicleRouter from "~modules/vehicles";
-import { checkSystem } from "./guards/systemCheck";
 
-const port = Bun.env.SERVER_PORT || 3210;
+// Middleware
+import { bootLogger, gracefulShutdown, requestLogger } from "~utils/logger";
+import { ErrorMessages } from "~utils/ErrorMessages";
+import { checkMaintenanceMode } from "~middleware/lifecycleHandlers";
+import customResponse from "~middleware/custom-response";
+import { sessionDerive } from "~middleware/session.derive";
 
-const app = new Elysia({name: 'API Gateway', prefix: '/v1'})
+// Route Handler
+import { registerControllers } from "./server";
 
-// Global state
-.state('version', 1)
-.state('maintenance', false as boolean)
-.decorate('maintenanceMode', (ctx:any)=> { ctx.store.maintenance})
 
-.use(helmet())
-.use(jwt({
-    name: 'jwt',
-    secret: Bun.env.JWT_SECRET!
-  }))
-.use(cookie())
-.use(html())
-// .use(HttpStatusCode())
-.use(yoga(yogaDefs))
-// .use(httpError())
-.use(
-  logger({
-    level: 'error'
-  })
-)
+try {
+  if (import.meta.main) {
+    const PORT = Bun.env.PORT || 3000;
+    const app = new Elysia({
+      name: consts.server.name,
+      prefix: `/v${consts.api.version}`,
+      websocket: { idleTimeout: consts.websocket.timeout },
+      // detail: { description: `${consts.server.name} Server API` }
+    })
 
-/* Error Handling */
-.onError(({code, error, set}) => {
-  switch (code) {
-    case 'NOT_FOUND':
-      set.status = 404;
-      return 'Resource not found';
-    case 'VALIDATION':
-      // set.status = 409;
-      console.error('Validation. ',error);
-      
-      return 'DTO Resource not valid';
-    default:
-      set.status = 500;
-      console.log('Error Message: ',error.message);
-      console.log('Error Code: ',error.name);
-      console.log('Code: ',code);
-      return 'System error encountered';
+    // State
+    .state('maintenanceMode', false)
+    .state('timezone', Bun.env.TZ)
+
+    /* Extensions */
+
+    // Log errors
+    // .use(logger({ 
+    //   logIP: true,
+    //   writer: {
+    //       write(msg: string) {
+    //         console.log(msg);
+    //       }
+    //   }
+    // }))
+
+    // Swagger
+    .use(swagger({ autoDarkMode: true, documentation: {
+      info: {
+          title: `${consts.server.name}`,
+          version: `${consts.server.version}`,
+          description: `Server API for ${consts.server.name}`
+      }
+    }}))
+
+    // CORS security
+    .use(cors({
+      // origin: ['http://localhost', 'http://localhost:5173'],
+      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'DELETE'],
+      credentials: true,
+      origin: /localhost.*/,
+      // origin: (ctx) => ctx.headers.get('Origin'),
+      allowedHeaders: ['Content-Type', 'Authorization', 'credentials', 'Host', 'os', 'ipCountry', 'X-Requested-With', 'X-Custom-Header', 'requestIP']
+    }))
+
+    // Helmet security (might conflict with swagger)
+    .use(helmet())
+
+    // Cookie global handler
+    .use(cookie({secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
+
+    // Rate limiter for added security
+    .use(rateLimit({max: 5}))
+
+    // CRON soul manager
+    .use(cron({
+      name: 'midnight-daily',
+      pattern: '0 0 * * *',
+      // '*/1 * * * 1-6', // seconds (optional), minute, hour, day of the month, month, day of the week (RTL)
+      timezone: Bun.env.TZ || 'Africa/Lusaka',
+      startAt: '',
+      stopAt: '',
+      maxRuns: undefined,
+      run() {
+        console.log('[CRON] 24 hour mark')
+      }
+    }))
+    // .use(sessionDerivePlugin)
+
+    // Life cycles
+    .derive(sessionDerive)
+    .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
+    .onError(({ code, error, set }:any) => ErrorMessages(code, error, set)) // General Error catching system
+    .onStop(gracefulShutdown)
+    .onRequest(requestLogger)
+    .mapResponse(customResponse);
+
+    // ROUTES
+    registerControllers(app as any);
+
+    process.on('SIGINT', app.stop);
+    process.on('SIGTERM', app.stop);
+
+    // initialize server
+    app.listen(PORT, bootLogger);
   }
-
-  // Error Codes:
-    // INTERNAL_SERVER_ERROR
-    // VALIDATION
-    // PARSE
-    // UNKNOWN
-})
-
-// Guarded Routes
-.guard({
-    beforeHandle: checkSystem
-  }, app => app
-      .get('/mode', ({store, query}) => {
-        if(query.mode === 'true'){
-          store.maintenance = true
-        } else if (query.mode === 'false') {
-          store.maintenance = false
-        }
-
-        return { 'Maintenance Mode': store.maintenance ? 'On' : 'Off' };
-      })
-
-      .group('', homeRouter) // Home Module
-
-      .group('/users', usersRouter) // Users Module
-
-      .group('/auth', authRouter) // Auth Module
-    
-      .group('/vehicles', vehicleRouter) // Vehicles Module
-)
-
-
-// Websocket
-// app.use(websocketRouter)
-
-/* Swagger */
-.use(swagger({
-  path:'/swagger',
-  documentation: {
-    info: {
-      title: 'Server Doc',
-      version: '0.9.1'
-    },
-    // tags: [
-    //   {name: 'Users', description: 'Users API'},
-    //   {name: 'Auth', description: 'Auth API'}
-    // ]
-  }
-}))
-
-
-.listen(port);
-console.log(
-  `🦊 Elysia up & running 18x faster! - BunJS.
-💾 ${app.server?.hostname}:${app.server?.port}`
-);
+} catch (e) {
+  console.log('Error firing up the server');
+  console.error(e);
+}
