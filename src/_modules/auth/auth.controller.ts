@@ -155,9 +155,11 @@ class AuthController {
             const session = await authService.createLuciaSession(result.id, headers);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
+            const sanitizedUser = authService.sanitizeUserObject(result);
+
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             set.headers["Set-Cookie"] = sessionCookie.serialize();
-            return { data: result.roles, message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})` };
+            return { data: sanitizedUser, message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})` };
         } catch (e) {
             console.error(e);
 

@@ -34,6 +34,21 @@ export default class AuthService {
         }
     }
 
+    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean}){
+        const cleanUser = {
+            id: opts?.id ? user.id : null,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            phone: user.phone,
+            roles: user.roles,
+            emailVerified: opts?.verified ? user.emailVerified : null,
+            isActive: opts?.active ? user.isActive : null,
+        };
+
+        return cleanUser;
+    }
+
     /**Validate email and password */
     validateCredentials(email:string, password:string, confirmPassword?:string){
         const emailRegex = /^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;

@@ -69,7 +69,7 @@ try {
     }))
 
     // Helmet security (might conflict with swagger)
-    .use(helmet())
+    // .use(helmet())
 
     // Cookie global handler
     .use(cookie({secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))

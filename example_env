@@ -18,3 +18,8 @@ POSTGRES_PASSWORD=postgres
 POSTGRES_PORT=5432
 DATABASE_NAME=my_db
 DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${HOST}:${POSTGRES_PORT}/${DATABASE_NAME}?schema=public"
+
+# Resend
+# API used for sending emails, usually only for Dev mode
+
+RESEND_API_KEY=1234

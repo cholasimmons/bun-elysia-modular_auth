@@ -1,13 +1,12 @@
 import { NotFoundError } from "elysia";
 import { Prisma, Profile, Role, User  } from "@prisma/client";
 import { db } from "~config/prisma";
-import { filesService } from "~modules/files";
 import { Resend } from "resend";
 import consts from "~config/consts";
 // import { minioClient } from "~config/minioClient";
 // import { FilesService } from "~modules/files";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(Bun.env.RESEND_API_KEY);
 export default class UsersService {
 
     async getAll(isActive?: boolean){
@@ -31,9 +30,6 @@ export default class UsersService {
                 include: {
                     profile: opts?.profile ? {
                         include: {
-                            vendor: opts?.vendor ?? false,
-                            tickets: opts?.tickets ?? false,
-                            usedCoupons: opts?.usedCoupons ?? false
                         }
                     } : false,
                     authSession: false,
@@ -81,9 +77,7 @@ export default class UsersService {
             const newProf: Profile = await db.profile.create({
                 data: {...data },
                 include: {
-                    user: true,
-                    usedCoupons: false,
-                    tickets: false
+                    user: true
                 }
             });
 
@@ -176,8 +170,6 @@ export default class UsersService {
             const profile = await db.profile.findUnique({ where: {
                 userId: userId
             }, include: {
-                usedCoupons: opts?.usedCoupons ? true : false,
-                // reviews: opts?.reviews ? true : false,
                 user: opts?.user ? true : false,
             }})
 
@@ -189,21 +181,21 @@ export default class UsersService {
         }
     }
 
-    async uploadPhoto(photo: File): Promise<{etag:string; versionId:string|null}|null> {
-        try{
-            const bucketCheck = await filesService.pingUserImageBucket();
-            if(bucketCheck === false || !bucketCheck) {
-                console.warn('Image storage service is unavailable');
-                return null;
-            };
+    // async uploadPhoto(photo: File): Promise<{etag:string; versionId:string|null}|null> {
+    //     try{
+    //         const bucketCheck = await filesService.pingUserImageBucket();
+    //         if(bucketCheck === false || !bucketCheck) {
+    //             console.warn('Image storage service is unavailable');
+    //             return null;
+    //         };
 
-            return await filesService.uploadUserPhoto(photo);
-        } catch(err) {
-            // console.error(err);
-            // return null
-            throw err
-        }
-    }
+    //         return await filesService.uploadUserPhoto(photo);
+    //     } catch(err) {
+    //         // console.error(err);
+    //         // return null
+    //         throw err
+    //     }
+    // }
 
     static async sendEmailToUser(userProfile:Partial<Profile>, message:string, subject?:string){
         console.log(`Sending message to ${userProfile.firstname}`);
