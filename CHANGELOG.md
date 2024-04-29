@@ -1,6 +1,20 @@
 # Changelog
 
 
+## [0.1.2] - 29-04-2024
+
+### Changed
+
+- Added fixes to [Dockerfile](README.md#note) to work around the Prisma+Docker issues.
+
+### Fixed
+
+- docker-compose.yaml now has DATABASE_URL key, essential to database access
+
+
+# ---------
+
+
 ## [0.1.1] - 28-04-2024
 
 ### Added

@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     # command: ["bunx", "prisma", "generate", "&&", "bunx", "prisma", "migrate", "deploy"]
     # command: bunx prisma migrate deploy
-    entrypoint: bun run src/index.ts
+    # entrypoint: bun run src/index.ts
     depends_on:  
       - db
     labels:
@@ -20,7 +20,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_PORT: '5432'
       DATABASE_NAME: my_db
-      # DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@192.168.0.2:${POSTGRES_PORT}/${DATABASE_NAME}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@192.168.0.2:${POSTGRES_PORT}/${DATABASE_NAME}?schema=public
       RESEND_API_KEY: '1234'
     networks:
       docker_net:

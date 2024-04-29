@@ -1,1 +1,4 @@
 GET  http://localhost:3000/v1/
+
+
+POST http://localhost:3000/v1/auth/register/

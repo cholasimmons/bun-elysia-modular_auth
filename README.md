@@ -11,7 +11,14 @@ To generate Prisma artifacts and migrate changes to the database, (you must have
 ```bash
 bunx prisma generate && bunx prisma migrate dev init
 ```
-Note: This schema is set to Windows by default, see `schema.prisma` file for possible changes
+
+# Note:
+As of May 2024 there exists a Prisma issue with generating the schema from within a docker image. A temporal fix requires some manual work.
+1. Set `schema.prisma` binaryTarget to debian-openssl-1.1.x for Linux
+2. Generate the schema on your local computer
+3. Manually copy the folders `node_modules/.prisma` and `node_modules/@prisma` to the root directory
+4. RUN a script from the Dockerfile to copy those 2 folders over into the image.
+5. Manually initialize the database with the `migration.sql` file found in `prisma/migrations/`
 
 
 ## Development

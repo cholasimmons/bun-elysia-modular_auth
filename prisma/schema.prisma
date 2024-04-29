@@ -6,9 +6,8 @@
 
 generator client {
   provider = "prisma-client-js"
-  // output = "../generated" // Required or Prisma will not generate in Docker images (Bun v1.27)
   binaryTargets = ["native"]
-  // binaryTargets = ["native", "debian-openssl-1.1.x"] // for Linux
+  // binaryTargets = ["native", "debian-openssl-1.1.x"] // Use this instead, to run inside Docker
   // binaryTargets = ["native", "debian-openssl-3.0.x"] // for Ubuntu 22.04 / Debian
   // binaryTargets = ["native", "windows"]
   previewFeatures = ["multiSchema"]
