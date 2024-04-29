@@ -3,8 +3,6 @@ import Elysia, { t } from "elysia";
 import { AuthController } from ".";
 import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models";
 import { checkCookieAuth } from "~middleware/Auth";
-import { lucia } from "~config/lucia";
-import { db } from "~config/prisma";
 
 
 
@@ -51,8 +49,10 @@ const authHandler = new Elysia({
             406: t.Object({ message: t.String({ default: 'Invalid credentials' }) }),
             500: t.Object({ message: t.String({ default: 'An unknown login error occurred' }) }),
         },
-        // transform: [(ctx:any) => {ctx.store.user = 'email'}],
-        // afterHandle: ({store})=>{ console.log(store) }
+        detail:{
+            description: 'Signs in User with previously registered account',
+            summary: 'Sign in'
+        }
     })
 
     .post('/register', AuthController.signup, {
@@ -64,6 +64,10 @@ const authHandler = new Elysia({
             409: t.Object({ message: t.String({ default: 'That email address is already taken' }) }),
             500: t.Object({ message: t.String({ default: 'An unknown auth error occurred' }) })
         },
+        detail:{
+            description: 'Creates a new User Account',
+            summary: 'Register New User'
+        }
     })
 
     .post('/logout', AuthController.logout, {

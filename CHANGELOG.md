@@ -1,18 +1,19 @@
 # Changelog
 
 
-## [0.1.1] - 27-04-2024
+## [0.1.1] - 28-04-2024
 
 ### Added
 
 - Added Arctic package for OAuth
 - `sanitizeUser()` service to clean User object and strip password
 - Added .dockerignore file now that we have a docker file
+- Added docker-compose.yaml file which includes PostgresDB and PGAdmin4 images
 
 ### Changed
 
-- Disabled helmet middleware as it conflicts with Swagger
 - Renamed and edited Dockerfile to standard [Bun]('https://bun.sh) recommendation
+- added "native" binaryTarget to Prisma Schema file to automatically detect host
 
 ### Deprecated
 
@@ -21,10 +22,11 @@
 ### Removed
 
 - Removed File service from Users service to slim down package
+- Removed @grotto/logysia logging package to use @bogeychan/elysia-logger instead
 
 ### Fixed
 
-- N/A
+- Added a small fix to helmet middleware, allowing swagger to work without issues as before.
 
 
 # ---------

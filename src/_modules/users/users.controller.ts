@@ -14,8 +14,9 @@ class UsersController {
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
-    async getAllUsers({ set, query: { isActive } }:any):Promise<{data: User[], message: string}|{message: string}> {
-
+    async getAllUsers({ set, query: { isActive }, log }:any):Promise<{data: User[], message: string}|{message: string}> {
+        log.error(isActive, "IsActive");
+        log.info(set.status, "Status");
         try {
             const users = await usersService.getAll(isActive);
 
@@ -206,7 +207,7 @@ class UsersController {
                 
             if(body.photo){
                 try{
-                    uploadedImage = await usersService.uploadPhoto(body.photo) 
+                    // uploadedImage = await usersService.uploadPhoto(body.photo) 
                 } catch(err) {
                     console.error(err);
                 }
@@ -226,7 +227,7 @@ class UsersController {
                 phone: body.phone ?? phone,
                 supportLevel: autoUser?.supportLevel ?? 0,
                 userId: id,
-                photoId: uploadedImage?.etag
+                photoId: uploadedImage ?? null
             }
 
             if(autoUser?.supportLevel && autoUser?.supportLevel > 0){
@@ -311,7 +312,7 @@ class UsersController {
 
             if(body.photo){
                 try {
-                    imageId = await usersService.uploadPhoto(body.photo)
+                    // imageId = await usersService.uploadPhoto(body.photo)
                 } catch(err) {
                     console.error(err);
                 }

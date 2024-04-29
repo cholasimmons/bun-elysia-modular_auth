@@ -4,11 +4,14 @@ import consts from '~config/consts';
 class RootController {
   constructor(){}
 
-  async helloWorld({set, user, session}: any) {
+  async helloWorld({set, user, session, log}: any) {
+    log.error(user, "User");
+    log.info(session, "Session");
+
     try {
       console.log(user);
       console.log(session);
-      console.log(user?.profileId);
+      console.log(user?.profileId ?? null);
       
       return { message: `Welcome to the ${consts.server.name} Server! Version ${consts.server.version}` }
     } catch (error) {

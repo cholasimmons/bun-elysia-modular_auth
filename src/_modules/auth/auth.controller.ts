@@ -1,18 +1,14 @@
 import { google, lucia } from "~config/lucia";
-import UsersService from "./auth.service";
-// import { consts } from "~config/consts";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
-import { Scrypt, generateId } from "lucia";
+import { generateId } from "lucia";
 import { OAuth2RequestError, generateCodeVerifier, generateState } from "arctic";
 import { encodeHex } from "oslo/encoding";
 import { sha256 } from "oslo/crypto";
-import { TimeSpan, createDate, isWithinExpirationDate } from "oslo";
+import { isWithinExpirationDate } from "oslo";
 import { AuthService } from ".";
 import { Role, User } from "@prisma/client";
-import { profile } from "bun:jsc";
 import consts from "~config/consts";
-import { Context, ElysiaConfig } from "elysia";
 
 
 const url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;

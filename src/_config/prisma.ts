@@ -19,7 +19,7 @@ async function seedAutoEnrol(){
 
         await db.autoEnrol.createMany({
             data: [
-                { email: 'simmonsfrank@gmail.com', names: 'Frank Chola Simmons', phone: '0977397651', roles: [Role.ADMIN], supportLevel: 3 },
+                { email: 'myaddress@email.com', names: 'Frank Simmons', phone: '1234', roles: [Role.ADMIN], supportLevel: 3 },
             ]
         })
     }
@@ -30,8 +30,8 @@ async function seedAutoEnrol(){
 }
 
 // Call the seedData function when the server starts
-seedAutoEnrol().then(() => {
-    console.log('[SEEDING] ✅ Seed function completed successfully');
-}).catch((error) => {
-    console.error('[SEEDING] ❌ Error seeding data:', error);
-});
+// seedAutoEnrol().then(() => {
+//     console.log('[SEEDING] ✅ Seed function completed successfully');
+// }).catch((error) => {
+//     console.error('[SEEDING] ❌ Error seeding data:', error);
+// });

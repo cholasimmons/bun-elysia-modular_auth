@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, error } from "elysia";
 
 // Configurations
 import consts from "~config/consts";
@@ -21,6 +21,7 @@ import { sessionDerive } from "~middleware/session.derive";
 
 // Route Handler
 import { registerControllers } from "./server";
+import { logger } from "@bogeychan/elysia-logger";
 
 
 try {
@@ -40,14 +41,10 @@ try {
     /* Extensions */
 
     // Log errors
-    // .use(logger({ 
-    //   logIP: true,
-    //   writer: {
-    //       write(msg: string) {
-    //         console.log(msg);
-    //       }
-    //   }
-    // }))
+    .use(logger({ 
+      level: 'error',
+      // file: "./my.log", // fileLogger
+    }))
 
     // Swagger
     .use(swagger({ autoDarkMode: true, documentation: {
@@ -69,7 +66,14 @@ try {
     }))
 
     // Helmet security (might conflict with swagger)
-    // .use(helmet())
+    .use(helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          "script-src": ["'self'", "https://cdn.jsdelivr.net/"],
+        },
+      }
+    }))
 
     // Cookie global handler
     .use(cookie({secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
