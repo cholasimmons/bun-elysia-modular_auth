@@ -14,3 +14,4 @@ example_env
 .editorconfig
 .idea
 coverage*
+.yaml

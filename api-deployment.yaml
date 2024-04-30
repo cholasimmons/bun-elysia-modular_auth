@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: C:\ProgramData\chocolatey\lib\kubernetes-kompose\tools\kompose.exe convert -f docker-compose.yaml
+    kompose.version: 1.32.0 (765fde254)
+    studio.simmons: Simmons Multimedia Demo
+  labels:
+    io.kompose.service: api
+  name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: api
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: C:\ProgramData\chocolatey\lib\kubernetes-kompose\tools\kompose.exe convert -f docker-compose.yaml
+        kompose.version: 1.32.0 (765fde254)
+        studio.simmons: Simmons Multimedia Demo
+      labels:
+        io.kompose.network/elysia-lucia-prisma-server-docker-net: "true"
+        io.kompose.service: api
+    spec:
+      containers:
+        - env:
+            - name: DATABASE_NAME
+              value: my_db
+            - name: DATABASE_URL
+              value: postgresql://postgres:postgres@10.96.19.244:5432/my_db?schema=public
+            - name: PORT
+              value: "3000"
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: postgres
+            - name: RESEND_API_KEY
+              value: "1234"
+            - name: TZ
+              value: Africa/Lusaka
+          image: simmonsstudiozm/elysia-auth:1
+          name: elysia
+          ports:
+            - containerPort: 3000
+              hostPort: 3000
+              protocol: TCP
+      restartPolicy: Always
