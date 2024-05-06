@@ -9,7 +9,7 @@ bun install
 ## Database Migration
 To generate Prisma artifacts and migrate changes to the database, (you must have a running instance of PostgreSQL) [Laragon](https://laragon.org) is a quick and simple solution:
 ```bash
-bunx prisma generate && bunx prisma migrate dev init
+bunx prisma generate && bunx prisma migrate deploy
 ```
 
 # Note:
