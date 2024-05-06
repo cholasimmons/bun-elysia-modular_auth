@@ -9,6 +9,7 @@ import { isWithinExpirationDate } from "oslo";
 import { AuthService } from ".";
 import { Role, User } from "@prisma/client";
 import consts from "~config/consts";
+import cookie from "@elysiajs/cookie";
 
 
 const url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;
@@ -25,10 +26,17 @@ class AuthController {
     }
 
 
-    async login({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ BusPlus1 }}: any){
+    async login({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ cookieName }, authJWT, params }: any){
 
         try {
-            // const res:any = await authService.login(email, password, rememberme, ctx);
+            // Check if the Authentication-Method header is present
+            const authMethod = headers.get('Authentication-Method') ?? null;
+
+            if (!authMethod) {                
+                // If the header is missing, return an error response
+                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+                return { success: false, message: "Authentication method not specified", data: null };
+            }
 
             authService.validateCredentials(email.toLowerCase(), password)
 
@@ -53,7 +61,7 @@ class AuthController {
             }
 
             const sessions = await lucia.getUserSessions(userExists.id);
-            if(sessions && sessions.length > consts.server.maxSessions){
+            if(sessions && sessions.length > consts.auth.maxSessions){
                 console.log(`User has ${sessions.length} sessions`);
                 const tempSessId = sessions[sessions.length-1].id;
 
@@ -73,11 +81,32 @@ class AuthController {
                 sessions: sessions.length
             }
 
-            const sess = await authService.createLuciaSession(userExists.id, headers, rememberme);
-            const sessionCookie = lucia.createSessionCookie(sess.id);
-            // await lucia.invalidateSession(BusPlus1.value);
+            // Generate access token (JWT) using logged-in user's details
+            const accessToken = await authJWT.sign({
+                id: userExists.id,
+                firstname: userExists.firstname,
+                lastname: userExists.lastname,
+                roles: userExists.roles,
+                emailVerified: userExists.emailVerified,
+                createdAt: userExists.createdAt,
+                profileId: userExists.profile?.id ?? null
+            });
            
             set.status = HttpStatusEnum.HTTP_200_OK;
+            // Causes issues in Insomnia as it expects both to be available
+            // if(authMethod === "Cookie"){
+            //     const {id} = await authService.createLuciaSession(userExists.id, headers, rememberme);
+            //     const sessionCookie = await lucia.createSessionCookie(id);
+            //     sessionCookie.value = accessToken;
+            //     set.headers["Set-Cookie"] = sessionCookie.serialize();
+            // } else if(authMethod === "JWT") {
+            //     set.headers["Authorization"] = `Bearer ${accessToken}`;
+            // }
+
+            const {id} = await authService.createLuciaSession(userExists.id, headers, rememberme);
+            const sessionCookie = lucia.createSessionCookie(id);
+            // sessionCookie.value = accessToken;
+            set.headers["Authorization"] = `Bearer ${accessToken}`;
             set.headers["Set-Cookie"] = sessionCookie.serialize();
             return { data: payload, message: 'Successfully logged in' };
         } catch (e:any) {
@@ -122,8 +151,8 @@ class AuthController {
 
             const hashedPassword = await Bun.password.hash(password, {
                 algorithm: 'argon2id',
-                memoryCost: 9,
-                timeCost: 7, // the number of iterations
+                memoryCost: 5,
+                timeCost: 5, // the number of iterations
             });
 
             const uid = generateId(18);
@@ -178,11 +207,26 @@ class AuthController {
         }
     }
 
-    async logout({ set, cookie: { lucia_session } }: any){
-        console.debug("Logging out...");
+    async logout({ set, request:{headers}, session, cookie: { lucia_session }, authJWT }: any){
+        const isCookieValid = await lucia.validateSession(session.id);
+
+        const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
+        if(!token){
+            set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
+            return { message: 'No access token present' };
+        }
+        const isJWTValid = await authJWT.verify(token);
+
+        if(!isCookieValid && !isJWTValid.userId){
+            set.status = HttpStatusEnum.HTTP_405_METHOD_NOT_ALLOWED;
+            return { message: 'You were not logged in' }
+        }
+
+        await authJWT.sign(null);
+
         const sessionCookie = lucia.createBlankSessionCookie();
         
-        await lucia.invalidateSession(lucia_session.value);
+        await lucia.invalidateSession(session.id);
 
         lucia_session.value = sessionCookie.value;
         await lucia_session.set(sessionCookie.attributes);
@@ -190,8 +234,8 @@ class AuthController {
         // redirect back to login page
         set.status = HttpStatusEnum.HTTP_200_OK;
         // set.headers['HX-Redirect'] = '/';
-        set.headers['Set-Cookie'] = sessionCookie.serialize();
         // set.redirect = '/auth/login';
+        set.headers['Set-Cookie'] = sessionCookie.serialize();
         return { message: 'You successfully logged out' };
     }
 

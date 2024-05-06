@@ -5,14 +5,18 @@
     "email": "cholasimmons@gmail.com",
     "github": "https://github.com/cholasimmons"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "trustedDependencies": [
     "@prisma/client"
   ],
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "bun build --compile --minify --sourcemap --target=bun-linux-x64 src/index.ts --outfile app",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "start": "bunx prisma db seed && NODE_ENV=production bun run src/index.ts"
   },
   "dependencies": {
     "@bogeychan/elysia-logger": "^0.0.21",
@@ -20,7 +24,7 @@
     "@elysiajs/cors": "^1.0.2",
     "@elysiajs/cron": "^1.0.3",
     "@elysiajs/html": "^0.7.3",
-    "@elysiajs/jwt": "^0.7.0",
+    "@elysiajs/jwt": "^1.0.2",
     "@elysiajs/lucia-auth": "^0.0.0-exp-20230623.312",
     "@elysiajs/swagger": "^1.0.4",
     "@lucia-auth/adapter-prisma": "^4.0.1",
@@ -38,6 +42,7 @@
   },
   "devDependencies": {
     "bun-types": "^1.0.14",
-    "prisma": "^5.13.0"
+    "prisma": "^5.13.0",
+    "tsx": "^4.9.1"
   }
 }

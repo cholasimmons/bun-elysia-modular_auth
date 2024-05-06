@@ -168,12 +168,15 @@ class UsersController {
     /* POST */  
 
 
-    async createNewProfile({ set, body, user, session, user:{ id, firstname, lastname, email, phone, roles, profileId }, request:{ headers }, cookie:{ BusPlus1 } }:any) {
-        console.log("User: ", user);
-        console.log("Session: ", session);
-        
+    async createNewProfile({ set, body, user, session, user:{ id, firstname, lastname, email, phone, emailVerified, profileId }, request:{ headers }, cookie:{ lucia_auth }, authJWT }:any) {
+        console.debug("User: ", user);
+        console.debug("Session: ", session);
 
         try {
+            if(!emailVerified){
+                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+                return { message: `Your account is not verified.` }
+            }
             // Checking if ProfileID exists in session
             if(profileId){
                 // Checking if User already has a Profile 
@@ -185,7 +188,6 @@ class UsersController {
                 }
             }
 
-            
 
             // console.log('Checking for pre-existing Profile of similar credentials...');
             // Check DB for profile of same nrc/passport number
@@ -234,7 +236,7 @@ class UsersController {
                 await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             }
 
-            const newProfile = await usersService.createUserProfile(ammendedProfile)
+            const newProfile: any = await usersService.createUserProfile(ammendedProfile)
             // console.debug("Profile Created: ", newProfile);
             
             if(!newProfile){
@@ -242,12 +244,24 @@ class UsersController {
                 return { message: 'Problem processing profile submission.' }
             }
 
-            const sess = await authService.createLuciaSession(user.id, headers);
+            // Generate access token (JWT) using new profile details
+            const accessToken = await authJWT.sign({
+                id: newProfile.userId,
+                firstname: newProfile.firstname,
+                lastname: newProfile.lastname,
+                roles: newProfile.user?.roles,
+                emailVerified: newProfile.user.emailVerified,
+                createdAt: newProfile.user.createdAt,
+                profileId: newProfile.id ?? null
+            });
+
+            const sess = await authService.createLuciaSession(user.id, headers, newProfile.id);
             const sessionCookie = lucia.createSessionCookie(sess.id);
-            await lucia.invalidateSession(BusPlus1.value);
+            await lucia.invalidateSession(lucia_auth.value);
             
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             set.headers["Set-Cookie"] = sessionCookie.serialize();
+            set.headers["Authentication"] = `Bearer ${accessToken}`;
             return { data: newProfile, message: `User Profile successfully created. ${!!uploadedImage ? '' : '(No image)'}` }
         } catch(err:any){
             console.warn(`errrr ${err}`);

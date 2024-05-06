@@ -2,15 +2,18 @@ const consts = {
     server: {
         name: 'Hello World',
         author: 'Just.Chola',
-        version: '0.1.0',
-        passwordMinLength: 8,
-        maxSessions: 2,
-        cookieName: 'lucia-auth',
+        version: '0.2.0',
         email: 'info@simmons.studio'
     },
     api: {
         versionPrefix: `/v`,
         version: 1
+    },
+    auth: {
+        name: 'lucia_auth',
+        jwtMaxAge: 7,
+        maxSessions: 2,
+        passwordMinLength: 8,
     },
     websocket: {
         timeout: 7

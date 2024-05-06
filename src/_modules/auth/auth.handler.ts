@@ -2,7 +2,7 @@
 import Elysia, { t } from "elysia";
 import { AuthController } from ".";
 import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models";
-import { checkCookieAuth } from "~middleware/Auth";
+import { checkAuth, checkCookieAuth } from "~middleware/authChecks";
 
 
 
@@ -71,9 +71,11 @@ const authHandler = new Elysia({
     })
 
     .post('/logout', AuthController.logout, {
-        beforeHandle: checkCookieAuth,
+        beforeHandle: checkAuth,
         response: {
-            200: t.Object({ message: t.Optional( t.String({ default: 'You successfully logged out'}) ) })
+            200: t.Object({ message: t.Optional( t.String({ default: 'You successfully logged out'}) ) }),
+            401: t.Object({ message: t.String({ default: 'No access token present' }) }),
+            405: t.Object({ message: t.String({ default: 'You were not logged in' }) })
         }
     })
 

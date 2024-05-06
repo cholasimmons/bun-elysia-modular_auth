@@ -1,6 +1,6 @@
 import Elysia, { t } from "elysia";
 import { UsersController } from ".";
-import { checkCookieAuth, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/Auth";
+import { checkAuth, checkCookieAuth, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
 import { UserQueriesDTO,AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, ProfileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, UpdateProfileDTO } from "./users.model";
 
 const usersHandler = new Elysia({
@@ -8,7 +8,7 @@ const usersHandler = new Elysia({
     detail: { description:'User management endpoint', tags: ['Users'] }
 })
     // Lifecycle, auth
-    .onBeforeHandle(checkCookieAuth)
+    .onBeforeHandle([checkAuth])
 
     // Get all Users [STAFF]
     .get('/', UsersController.getAllUsers, {
@@ -93,7 +93,7 @@ const usersHandler = new Elysia({
     .post('/profile', UsersController.createNewProfile,{
         body: ProfileBodyDTO,
         response: {
-            201: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfullly created new User Profile' }) }),
+            201: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully created new User Profile' }) }),
             302: t.Object({ message: t.String({ default: 'A profile already exists with those credentials'}) }),
             406: t.Object({ message: t.String({ default: 'Your submission was not valid.'}) }),
             409: t.Object({ message: t.String({ default: 'You already have a profile'}) }),

@@ -1,6 +1,27 @@
 # Changelog
 
 
+## [0.2.0] - 09-05-2024
+
+### Added
+
+- JWT authentication for frontend client.
+- Authentication checking middleware "checkAuth" added to replace previous cookie middleware "checkCookieAuth".
+- Prisma seeding function for required initial data such as global settings, roles, subscription plans e.tc..
+
+### Changed
+
+- User Authentication now returns JWT token or Cookie - depending on request header "Authentication-Method".
+- Naming convention for files changed to camelCase
+
+### Updated
+
+- `elysia-rate-limit` updated to v3.2.2
+
+
+# ---------
+
+
 ## [0.1.2] - 29-04-2024
 
 ### Changed

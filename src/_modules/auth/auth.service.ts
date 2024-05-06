@@ -20,19 +20,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // today.setFullYear(nextYear)
 
 export default class AuthService {
-    async login(email: string, password: string, rememberme:boolean, ctx: any){
-        const { request: {headers}, set} = ctx;
-        
-        try {
-            
-            return { data: null };
 
-        } catch (err) {
-            console.error("[AUTH SERVICE] ",err);
-            
-            throw err;
-        }
-    }
 
     async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean}){
         const cleanUser = {
@@ -57,14 +45,14 @@ export default class AuthService {
             // basic check
             if ( 
                 (typeof email !== "string" || 
-                email.length < (consts.server.passwordMinLength ?? 8) || email.length > 32) && emailRegex.test(email)
+                email.length < (consts.auth.passwordMinLength ?? 8) || email.length > 32) && emailRegex.test(email)
             ) {
                 throw 'Email is not valid';
             }
 
             if (
                 typeof password !== "string" ||
-                password.length < (consts.server.passwordMinLength ?? 8) || password.length > 32
+                password.length < (consts.auth.passwordMinLength ?? 8) || password.length > 32
             ) {
                 throw 'Invalid password format';
             }
@@ -78,14 +66,17 @@ export default class AuthService {
     }
 
     async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe:boolean = false){
-        const userAgent = headers.get('host') ?? "localhost";
-        const userAgentHash = await Bun.hash(userAgent);
+        const userAgent = headers.get('user-agent') ?? "Unknown";
+        const userAgentHash = (userAgent === 'Unknown' ? userAgent : btoa(userAgent));
+
+        const os = headers.get('os') ?? "Unknown";
+        const osHash = (userAgent === 'Unknown' ? userAgent : btoa(os));
 
         return await lucia.createSession(userId, {
             ipCountry: headers.get('ipCountry'),
-            os: headers.get('os'),
+            os: osHash,
             host: headers.get('host'),
-            userAgentHash: userAgentHash.toString(),
+            userAgentHash: userAgentHash,
             fresh: true,
             expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
             activeExpires: Date.now() + ( 1000 * 60 * (rememberMe ? 60 : 1))
