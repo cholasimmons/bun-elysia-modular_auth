@@ -45,4 +45,4 @@ package-lock.json
 # Prisma+Docker fix
 .prisma
 @prisma
-.yaml
+*.yaml
