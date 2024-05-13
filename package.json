@@ -16,7 +16,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "bun build --compile --minify --sourcemap --target=bun-linux-x64 src/index.ts --outfile app",
     "dev": "bun run --watch src/index.ts",
-    "start": "bunx prisma db seed && NODE_ENV=production bun run src/index.ts"
+    "start": "bunx prisma db seed && NODE_ENV=production bun run src/index.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@bogeychan/elysia-logger": "^0.0.21",
