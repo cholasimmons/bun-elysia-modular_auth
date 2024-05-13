@@ -33,18 +33,18 @@ export const ProfileResponseDTO: TSchema = t.Object({
     createdAt: t.Date(),
     updatedAt: t.Optional(t.Date())
 });
-export const UpdateProfileDTO: TSchema = t.Object({
+export const UpdateProfileBodyDTO: TSchema = t.Object({
     bio: t.Optional(t.String()),
     photo: t.Optional(t.File({type: 'image'})),
-    // firstname: t.String(),
-    // lastname: t.String(),
-    address: t.Optional(t.String()),
-    // gender: t.Enum(Gender),
+    firstname: t.Optional(t.String()),
+    lastname: t.Optional(t.String()),
+    // address: t.Optional(t.String()),
+    gender: t.Optional(t.Enum(Gender)),
     supportLevel: t.Optional(t.Number()),
     phone: t.Optional(t.String()),
-    // phoneVerified: t.Boolean(),
 
     isActive: t.Optional(t.Boolean()),
+    isComment: t.Optional(t.String())
 });
 
 export const UserResponseDTO: TSchema = t.Object({
@@ -64,7 +64,7 @@ export const UserResponseDTO: TSchema = t.Object({
 })
 
 export const ProfileQueriesDTO = t.Object({
-    // user: t.Optional(t.Boolean()),
+    account: t.Optional(t.BooleanString({ default: false })),
 })
 export const UserQueriesDTO = t.Object({
     profile: t.Optional(t.Boolean({default: false})),

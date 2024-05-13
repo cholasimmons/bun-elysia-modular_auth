@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import consts from '~config/consts';
-import { mkdir } from 'node:fs/promises'
 
 
 async function requestLogger({request, code, set, user}: any) {

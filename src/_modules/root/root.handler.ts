@@ -1,7 +1,7 @@
 
 import Elysia, { t } from "elysia";
 import { RootController } from "~modules/root";
-import { checkForProfile } from "~middleware/Auth";
+import { checkAuth, checkForProfile, checkJWTAuth } from "~middleware/authChecks";
 
 const rootHandler = new Elysia({ prefix: '' })
 
@@ -10,11 +10,12 @@ const rootHandler = new Elysia({ prefix: '' })
     }) // main route
 
     .get('/hello', RootController.helloTime, {
+        beforeHandle: [checkAuth],
         detail: {description: 'Greeting + time', tags: ['root'] },
     }) // hello route
       
     .get('/hello/:name', RootController.helloTime, {
-        beforeHandle: [checkForProfile],
+        beforeHandle: [checkAuth, checkForProfile],
         detail: {description: 'Greeting + time', tags: ['root'] },
         params: t.Object({ name: t.String() })
     }) // hello + name route

@@ -9,29 +9,39 @@ import consts from "~config/consts";
 const resend = new Resend(Bun.env.RESEND_API_KEY);
 export default class UsersService {
 
-    async getAll(isActive?: boolean){
+    async getAll(isActive?: boolean, profiles?: boolean){
         try {
             return db.user.findMany({
-                where: { isActive: (isActive ?? undefined) }
+                where: { isActive: isActive ?? undefined },
+                select: {
+                    id: true,
+                    firstname: true,
+                    lastname: true,
+                    roles: true,
+                    email: true,
+                    emailVerified: true,
+                    profile: profiles ?? false,
+                    profileId: true,
+                    phone: true,
+                    isActive: true,
+                    isComment: true,
+                    createdAt: true
+                }
             });
         } catch (error) {
             console.error("Could not get all users. ",error);
-            throw `Unable to retrieve All Users with isActive status: ${isActive ?? 'N/A'}`;
+            throw `Unable to retrieve ${isActive ? 'active' : 'deactivated'} Users`;
         }
         
     }
 
     // Returns a unique User from the DB with particular ID string
-    async getUser(id: string, opts?:{ profile?:boolean, vendor?:boolean, tickets?:boolean, usedCoupons?:boolean }): Promise<Partial<User>> {
-
+    async getUser(userId: string, opts?:{ profile?:boolean }): Promise<Partial<User>> {
         try {
             const user: Partial<User>|null = await db.user.findUnique({
-                where: { id: id },
+                where: { id: userId },
                 include: {
-                    profile: opts?.profile ? {
-                        include: {
-                        }
-                    } : false,
+                    profile: opts?.profile ?? false,
                     authSession: false,
                 }
             });

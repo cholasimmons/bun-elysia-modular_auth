@@ -7,21 +7,22 @@ import consts from "~config/consts";
 import { swagger } from "@elysiajs/swagger";
 import { rateLimit } from "elysia-rate-limit";
 import cron from "@elysiajs/cron";
-// import { logger } from "@grotto/logysia";
 import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
 import cookie from "@elysiajs/cookie";
 
 // Middleware
-import { bootLogger, gracefulShutdown, requestLogger } from "~utils/logger";
-import { ErrorMessages } from "~utils/ErrorMessages";
+import { bootLogger, gracefulShutdown, requestLogger } from "~utils/systemLogger";
+import { ErrorMessages } from "~utils/errorMessages";
 import { checkMaintenanceMode } from "~middleware/lifecycleHandlers";
-import customResponse from "~middleware/custom-response";
+import customResponse from "~middleware/customResponse";
 import { sessionDerive } from "~middleware/session.derive";
 
 // Route Handler
 import { registerControllers } from "./server";
 import { logger } from "@bogeychan/elysia-logger";
+import jwt from "@elysiajs/jwt";
+import { lucia } from "~config/lucia";
 
 
 try {
@@ -41,10 +42,10 @@ try {
     /* Extensions */
 
     // Log errors
-    .use(logger({ 
-      level: 'error',
-      // file: "./my.log", // fileLogger
-    }))
+    // .use(logger({ 
+    //   level: 'error',
+    //   // file: "./my.log", // fileLogger
+    // }))
 
     // Swagger
     .use(swagger({ autoDarkMode: true, documentation: {
@@ -62,7 +63,7 @@ try {
       credentials: true,
       origin: /localhost.*/,
       // origin: (ctx) => ctx.headers.get('Origin'),
-      allowedHeaders: ['Content-Type', 'Authorization', 'credentials', 'Host', 'os', 'ipCountry', 'X-Requested-With', 'X-Custom-Header', 'requestIP']
+      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Requested-With', 'X-Custom-Header', 'requestIP', 'Authentication-Method']
     }))
 
     // Helmet security (might conflict with swagger)
@@ -76,10 +77,19 @@ try {
     }))
 
     // Cookie global handler
-    .use(cookie({secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
+    .use(cookie({ secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
 
+    // JWT
+    .use(
+      jwt({
+          name: 'authJWT',
+          secret: Bun.env.JWSCRT!,
+          exp: `${consts.auth.jwtMaxAge}d`
+      })
+  )
+  
     // Rate limiter for added security
-    .use(rateLimit({max: 5}))
+    .use(rateLimit({max: Bun.env.NODE_ENV === 'production' ? 5 : 15}))
 
     // CRON soul manager
     .use(cron({
@@ -92,9 +102,15 @@ try {
       maxRuns: undefined,
       run() {
         console.log('[CRON] 24 hour mark')
+
+        lucia.deleteExpiredSessions().then(() => {
+          console.log('All expired sessions successfully deleted');
+        }).catch(e => {
+          console.error("Couldn't delete sessions. ",e);
+        });
       }
     }))
-    // .use(sessionDerivePlugin)
+
 
     // Life cycles
     .derive(sessionDerive)

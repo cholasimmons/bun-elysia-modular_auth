@@ -2,7 +2,7 @@
 import Elysia, { t } from "elysia";
 import { AuthController } from ".";
 import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models";
-import { checkCookieAuth } from "~middleware/Auth";
+import { checkAuth, checkCookieAuth } from "~middleware/authChecks";
 
 
 
@@ -12,7 +12,6 @@ const authHandler = new Elysia({
 })
 
     .get('/', AuthController.root, {
-        // afterHandle: customResponse
     })
 
     .get('/login', ()=>'use POST not GET')
@@ -32,7 +31,7 @@ const authHandler = new Elysia({
     })
 
     .get('/sessions', AuthController.getAllMySessions, {
-        beforeHandle: [checkCookieAuth]
+        beforeHandle: [checkAuth]
     })
 
 
@@ -58,7 +57,7 @@ const authHandler = new Elysia({
     .post('/register', AuthController.signup, {
         body: RegisterUserDTO,
         response: {
-            302: t.Object({ message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
+            201: t.Object({ message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
             400: t.Object({ message: t.String({ default: 'A data persistence problem occurred' }) }),
             406: t.Object({ message: t.String({ default: 'That email address is taken' }) }),
             409: t.Object({ message: t.String({ default: 'That email address is already taken' }) }),
@@ -71,9 +70,14 @@ const authHandler = new Elysia({
     })
 
     .post('/logout', AuthController.logout, {
-        beforeHandle: checkCookieAuth,
+        beforeHandle: checkAuth,
         response: {
-            200: t.Object({ message: t.Optional( t.String({ default: 'You successfully logged out'}) ) })
+            200: t.Union([
+                t.Object({ message: t.String({ default: 'You successfully logged out'}) }),
+                t.Undefined()
+            ]),
+            401: t.Object({ message: t.String({ default: 'No access token present' }) }),
+            405: t.Object({ message: t.String({ default: 'You were not logged in' }) })
         }
     })
 
@@ -82,7 +86,7 @@ const authHandler = new Elysia({
             200: t.Object({ message: t.String({ default: 'Verification code sent to user email'}) }),
             500: t.Object({ message: t.String({ default: 'Unable to send verification code'}) }),
         }
-    }) // POST??? really?
+    })
 
     .post('/forgot-password', AuthController.postForgotPassword, {
         body: t.Object({ email: t.String({ format: 'email', default:'abc@email.com' }) })
@@ -93,7 +97,7 @@ const authHandler = new Elysia({
     .post('/reset-password/:token', AuthController.postResetPassToken, {
         params: t.Object({ token: t.String() }),
         body: t.Object({ password: t.String(), confirmPassword: t.String() })
-    }) // POST? come'on...
+    })
 
     // .post('/resend-verification', AuthController.postEmailVerification, {
     //     response: {
@@ -103,15 +107,17 @@ const authHandler = new Elysia({
     // })
 
     .post('/change-password', AuthController.getChangePassword, {
+        beforeHandle: checkAuth,
         body: changePasswordBody,
         response: {
-            200: t.Object({ message: t.String({ default: 'Your password was successfully changed' })}),
+            200: t.Union([
+                t.Object({ message: t.String({ default: 'Your password was successfully changed' }) }),
+                t.Undefined()
+            ]),
             400: t.Object({ message: t.String({ default: 'You must be signed in' })}),
             404: t.Object({ message: t.String({ default: 'Your passwords do not match' })}),
             500: t.Object({ message: t.String({ default: 'Unable to change password' })})
         }
     })
-
-    
 
 export default authHandler;

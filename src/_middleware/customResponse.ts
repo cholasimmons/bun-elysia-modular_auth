@@ -36,7 +36,6 @@ const customResponse = ({ response, set }:any): any => {
     if(set.status !== 401 && set.status !== 403){
         sanitizeResponse();
     }
-    
 
     // Check if response is an empty object
     function isEmptyObject(response: Response) {
