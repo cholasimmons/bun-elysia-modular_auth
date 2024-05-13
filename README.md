@@ -1,4 +1,19 @@
-# Elysia JS Authentication template (with Bun runtime)
+# Modular Elysia JS app | Authentication template (Bun runtime)
+
+### Features
+- Lucia Auth v3
+- Prisma ORM (PostgreSQL integration)
+- Schema Validation examples
+- Helmet, CORS for added security
+- Swagger documentation
+- CRON with predefined 24 hour cycle
+- basic endpoint logging
+- authentication/authorization middleware (public/private routes based on roles)
+- email verification codes
+- change/reset password
+- modular design for easy expansion
+
+
 
 ## Getting Started
 To get started with this template, simply clone this repo, cd into the cloned folder and rename example_env to .env, paste this command into your terminal (in the cloned directory):
@@ -27,7 +42,7 @@ To start the development server run:
 bun run dev
 ```
 
-Open http://localhost:3000/v1 with your browser to see the result.
+Open http://localhost:3000/v1 with your browser or REST API Client to see the result.
 
 Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/swagger) and import it to
 [Insomnia REST API Client](https://insomnia.rest) to prepare all endpoints for you to test.
@@ -36,7 +51,7 @@ Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/s
 ## Authenticating a User
 The endpoint `/auth/register` allows you to create a new user account, while `/auth/login` logs you in.
 This auth system uses cookies and JWT's.
-The cookie name along with other configuration settings can be set in `_config/consts.ts`
+The cookie name along with other configuration settings can be set in the typescript file  `_config/consts.ts`
 
 
 # Docker
