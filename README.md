@@ -1,7 +1,7 @@
-# Elysia with Bun runtime
+# Elysia JS Authentication template (with Bun runtime)
 
 ## Getting Started
-To get started with this template, simply clone this repo and rename example_env to .env, paste this command into your terminal:
+To get started with this template, simply clone this repo, cd into the cloned folder and rename example_env to .env, paste this command into your terminal (in the cloned directory):
 ```bash
 bun install
 ```
@@ -35,7 +35,7 @@ Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/s
 
 ## Authenticating a User
 The endpoint `/auth/register` allows you to create a new user account, while `/auth/login` logs you in.
-This auth system uses cookies, not JWT.
+This auth system uses cookies and JWT's.
 The cookie name along with other configuration settings can be set in `_config/consts.ts`
 
 
