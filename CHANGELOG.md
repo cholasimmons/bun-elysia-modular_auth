@@ -1,22 +1,28 @@
 # Changelog
 
 
-## [0.2.0] - 09-05-2024
+## [0.2.0] - 13-05-2024
 
 ### Added
 
 - JWT authentication for frontend client.
 - Authentication checking middleware "checkAuth" added to replace previous cookie middleware "checkCookieAuth".
 - Prisma seeding function for required initial data such as global settings, roles, subscription plans e.tc..
+- Separate "check" middleware (checkEmailVerified) for unverified User Account
 
 ### Changed
 
 - User Authentication now returns JWT token or Cookie - depending on request header "Authentication-Method".
 - Naming convention for files changed to camelCase
+- Response schema changed to t.Union() to accomodate middleware checks that prevent the return of a code 200 response
 
 ### Updated
 
 - `elysia-rate-limit` updated to v3.2.2
+
+### Fixed
+
+- fixed return type for User Profiles from "profiles" to global standard "data", and changed query name from "user" to "account"
 
 
 # ---------

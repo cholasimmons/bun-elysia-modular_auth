@@ -7,7 +7,6 @@ import consts from "~config/consts";
 import { swagger } from "@elysiajs/swagger";
 import { rateLimit } from "elysia-rate-limit";
 import cron from "@elysiajs/cron";
-// import { logger } from "@grotto/logysia";
 import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
 import cookie from "@elysiajs/cookie";
@@ -23,7 +22,6 @@ import { sessionDerive } from "~middleware/session.derive";
 import { registerControllers } from "./server";
 import { logger } from "@bogeychan/elysia-logger";
 import jwt from "@elysiajs/jwt";
-import { checkJWTAuth } from "~middleware/authChecks";
 import { lucia } from "~config/lucia";
 
 

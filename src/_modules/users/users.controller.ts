@@ -14,29 +14,29 @@ class UsersController {
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
-    async getAllUsers({ set, query: { isActive }, log }:any):Promise<{data: User[], message: string}|{message: string}> {
+    async getAllUsers({ set, query: { isActive, profiles }, log }:any):Promise<{data: Partial<User>[], message: string}|{message: string}> {
         log.error(isActive, "IsActive");
         log.info(set.status, "Status");
         try {
-            const users = await usersService.getAll(isActive);
+            const users = await usersService.getAll(isActive, profiles);
 
-            if(!users){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                throw 'No Users found'
-            }
+            // if(!users){
+            //     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            //     return { message: 'Could not fetch Users' }
+            // }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: users, message: `Successfully retrieved ${users.length > 1 ? users.length : ''} Users` }
+            return { data: users, message: `Retrieved ${users.length > 1 ? users.length : '0'} Users` }
         } catch (err:any) {
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: err.toString() ?? 'Could not fetch Users' }
+            return { message: 'Could not fetch Users' }
         }
         
     }
 
     // Retrieve single User [ADMIN | SELF]
-    async getAccountById({ set, user, params, query:{ profile } }:any) {        
-        const user_id = params?.id ?? user.id;        
+    async getAccountById({ set, user, params:{ userId }, query:{ profile } }:any) {        
+        const user_id = userId ?? user.id;        
 
         try {
             if(!user_id){
@@ -57,18 +57,27 @@ class UsersController {
     }
 
     // Retrieve single User Profile [ADMIN]
-    async getProfileById({ set, params, query }: any):Promise<{data: Profile, message:string}|{message:string}> {
-        const { user } = query;
-
-        // const user_id = params?.id ?? user.userId;
-
+    async getProfileByUserId({ set, params:{ userId }, query:{ account } }: any):Promise<{data: Profile, message:string}|{message:string}> {
         try {
             const profile = await db.profile.findUnique({
                 where: {
-                    userId: params.id
+                    userId: userId
                 },
                 include: {
-                    user: user ?? false,
+                    user: account ? {
+                        select: {
+                            id: true,
+                            firstname: true,
+                            lastname: true,
+                            roles: true,
+                            email: true,
+                            emailVerified: true,
+                            phone: true,
+                            isActive: true,
+                            isComment: true,
+                            createdAt: true
+                        }
+                    } : false
                 }
             });
 
@@ -88,13 +97,25 @@ class UsersController {
     }
 
     // Retrieve currently logged in User's Profile [SELF]
-    async getMyProfile({ set, user }: any){
-
+    async getMyProfile({ set, user, query:{ account } }: any){
         try {
             const profile = await db.profile.findUnique({
-                where: { userId: user.userId },
+                where: { userId: user.id },
                 include: {
-                    user: false
+                    user: account ? {
+                        select: {
+                            id: true,
+                            firstname: true,
+                            lastname: true,
+                            roles: true,
+                            email: true,
+                            emailVerified: true,
+                            phone: true,
+                            isActive: true,
+                            isComment: true,
+                            createdAt: true
+                        }
+                    } : false
                 }
             });
 
@@ -104,8 +125,8 @@ class UsersController {
             }
 
             if(!profile.isActive){
-                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-                return { message: 'Profile is deactivated' };
+                set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
+                return { data: profile.isComment, message: 'Profile is deactivated' };
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
@@ -119,23 +140,34 @@ class UsersController {
     }
 
     // Retrieve all User Profiles [STAFF]
-    async getAllProfiles({ set, query }: any):Promise<{profiles: Profile[], message:string}|{message:string}>{
-        const { user} = query;
-
+    async getAllProfiles({ set, query:{ account } }: any):Promise<{data: Profile[], message:string}|{message:string}>{
         try {
             const profiles = await db.profile.findMany({
                 include: {
-                    user: user ?? false,
+                    user: account ? {
+                        select: {
+                            id: true,
+                            firstname: true,
+                            lastname: true,
+                            roles: true,
+                            email: true,
+                            emailVerified: true,
+                            phone: true,
+                            isActive: true,
+                            isComment: true,
+                            createdAt: true
+                        }
+                    } : false
                 }
             });
 
             if(!profiles){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'No User Profiles found' };
+                return { message: 'Error retrieving User Profiles' };
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { profiles: profiles, message: `Successfully retrieved ${profiles.length > 1 ? profiles.length : ''} User Profiles` };
+            return { data: profiles, message: `Retrieved ${profiles.length > 1 ? profiles.length : '0'} User Profiles` };
         } catch(e:any) {
             console.warn(e);
 
@@ -151,11 +183,11 @@ class UsersController {
 
             if(!autos){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { data: [], message:'Could not retrieve auto-enrollers' }
+                return { message:'Could not retrieve auto-enrollers' }
             }
 
             set.status = 200;
-            return { data: autos, message:'' }
+            return { data: autos, message: `Retrieved ${autos.length ?? 0} Auto-enrollers` }
         } catch (error) {
             console.error(error);
 
@@ -168,16 +200,13 @@ class UsersController {
     /* POST */  
 
 
+    // Create a User Profile, must have a verified email address
     async createNewProfile({ set, body, user, session, user:{ id, firstname, lastname, email, phone, emailVerified, profileId }, request:{ headers }, cookie:{ lucia_auth }, authJWT }:any) {
-        console.debug("User: ", user);
-        console.debug("Session: ", session);
+        console.debug("User..: ", user);
+        console.debug("Session..: ", session);
 
         try {
-            if(!emailVerified){
-                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-                return { message: `Your account is not verified.` }
-            }
-            // Checking if ProfileID exists in session
+            // Checking if ProfileID exists in session/token
             if(profileId){
                 // Checking if User already has a Profile 
                 const profile = await db.profile.findUnique({ where: {id:profileId}, select: {id:true} })
@@ -202,11 +231,10 @@ class UsersController {
                 return { message: 'A profile already exists with those credentials' };
             }
 
-
             // let imageID: { etag: any; versionId: string|null}|null = null;
             let uploadedImage: {etag:string; versionId:string|null}|null = null;
+
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
-                
             if(body.photo){
                 try{
                     // uploadedImage = await usersService.uploadPhoto(body.photo) 
@@ -232,12 +260,12 @@ class UsersController {
                 photoId: uploadedImage ?? null
             }
 
-            if(autoUser?.supportLevel && autoUser?.supportLevel > 0){
-                await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
-            }
+            // Disabled, to keep auto-users list forever
+            // if(autoUser?.supportLevel && autoUser?.supportLevel > 0){
+            //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
+            // }
 
             const newProfile: any = await usersService.createUserProfile(ammendedProfile)
-            // console.debug("Profile Created: ", newProfile);
             
             if(!newProfile){
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -250,8 +278,8 @@ class UsersController {
                 firstname: newProfile.firstname,
                 lastname: newProfile.lastname,
                 roles: newProfile.user?.roles,
-                emailVerified: newProfile.user.emailVerified,
-                createdAt: newProfile.user.createdAt,
+                emailVerified: newProfile.user?.emailVerified,
+                createdAt: newProfile.user?.createdAt,
                 profileId: newProfile.id ?? null
             });
 
@@ -287,6 +315,7 @@ class UsersController {
         }
     }
 
+    // Add new Auto-User to list [ADMIN]
     async addNewAutoEnroller({ set, body}:any){
         const { names, email, phone, roles, supportLevel } = body;
         try {
@@ -319,13 +348,14 @@ class UsersController {
     /* PUT */
 
     // Updates a User profile
-    async updateUserProfile({ set, params, user:{ id, roles }, body }:any) {
+    async updateUserProfile({ set, params:{ userId }, user:{ id }, body }:any) {
         try {
 
             let imageId: {etag:string; versionId:string|null}|null = null;
 
             if(body.photo){
                 try {
+                    // File service
                     // imageId = await usersService.uploadPhoto(body.photo)
                 } catch(err) {
                     console.error(err);
@@ -334,17 +364,23 @@ class UsersController {
 
 
             const profile = await db.profile.update({
-
-                where: { userId: !!params?.userId ? params?.userId : id },
+                where: { userId: userId ?? id },
                 data: {
                     bio: body.bio,
-                    isActive: body.isActive ?? undefined,
+                    // photoId: imageId?.etag ?? null,
+                    firstname: body.firstname,
+                    lastname: body.lastname,
+                    gender: userId ? body.gender : undefined,
+                    supportLevel: userId ? body.supportLevel : undefined,
+                    phone: body.phone,
+                    isActive: userId ? body.isActive : undefined,
+                    isComment: userId ? body.isComment : undefined
                 }
             });
 
             if(!profile){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Profile not found' }
+                return { message: 'Could not update Profile' }
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
@@ -357,27 +393,39 @@ class UsersController {
         }
     }
 
-    // Deactivates/Activates a User account [ADMIN]
-    async deactivateUser ({ set, params:{ userId }, user:{ id }, body: { isActive } }:any):Promise<{user: User, message: string}|{message: string}> {
+    // Deactivates a User account [ADMIN]
+    async deactivateUser ({ set, params:{ userId }, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
         try {
-            const user = await db.user.update({ where: { id: id }, data: { isActive: isActive} });
-
-            if(!user){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: `Could not find User.` }
-            }
+            const user = await db.user.update({
+                where: { id: userId },
+                data: { isActive: false, isComment: isComment },
+                select: {
+                    id: true,
+                    firstname: true,
+                    lastname: true,
+                    roles: true,
+                    email: true,
+                    emailVerified: true,
+                    phone: true,
+                    profile: false,
+                    profileId: true,
+                    isActive: true,
+                    isComment: true,
+                    createdAt: true
+                }
+            });
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { user: user, message: `User successfully ${isActive ? 'activated' : 'deactivated'}` };
+            return { data: user, message: `User successfully deactivated` };
         } catch (error) {
             console.error(error);
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: `Could not ${isActive ? 'activate' : 'deactivate'} account.` }
+            return { message: `Could not deactivate user account.` }
         }
     }
 }
 
 const usersService = new UsersService();
 const authService = new AuthService();
-export default new UsersController(usersService, authService) // .start();
+export default new UsersController(usersService, authService);

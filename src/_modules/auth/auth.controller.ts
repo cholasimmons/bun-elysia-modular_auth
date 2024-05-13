@@ -147,7 +147,7 @@ class AuthController {
                 return { message: 'That email address is taken' };
             }
 
-            const autoUser = await authService.validateEnrollment(email);
+            const autoUser = await authService.validateAutoEnrollment(email);
 
             const hashedPassword = await Bun.password.hash(password, {
                 algorithm: 'argon2id',
@@ -432,17 +432,10 @@ class AuthController {
         set.headers["Referrer-Policy"] = "no-referrer";
         return { message: 'Your password was successfully reset!' }
     }
-
-
     
 
     
     async getChangePassword({ set, user, body: {oldPassword, newPassword, confirmPassword} }:any){
-        if (!user) {
-            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-            return { message: 'You must be signed in' };
-        }
-
         try {
             // find user by Key, and validate password
             const userWithPass = await db.user.findUnique({ where: { email: user.email.toLowerCase() }, select: { hashedPassword: true } });
@@ -462,8 +455,8 @@ class AuthController {
 
             const newHashedPassword = await Bun.password.hash(newPassword, {
                 algorithm: 'argon2id',
-                memoryCost: 9,
-                timeCost: 7 // the number of iterations
+                memoryCost: 5,
+                timeCost: 5 // the number of iterations
             });
 
             await db.user.update({ where:{ id: user.id }, data:{ hashedPassword: newHashedPassword } });
@@ -576,4 +569,4 @@ class AuthController {
 }
 
 const authService = new AuthService();
-export default new AuthController(authService) // .start();
+export default new AuthController(authService);

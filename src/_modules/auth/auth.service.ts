@@ -21,17 +21,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default class AuthService {
 
-
-    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean}){
-        const cleanUser = {
-            id: opts?.id ? user.id : null,
+    // Clean full User object, removing sessions, password, OAuth IDs and profile
+    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
+        const cleanUser: Partial<User> = {
+            id: opts?.id ? user.id : undefined,
             firstname: user.firstname,
             lastname: user.lastname,
-            email: user.email,
-            phone: user.phone,
             roles: user.roles,
-            emailVerified: opts?.verified ? user.emailVerified : null,
-            isActive: opts?.active ? user.isActive : null,
+            email: user.email,
+            emailVerified: opts?.verified ? user.emailVerified : undefined,
+            phone: user.phone,
+            profileId: user.profileId,
+            isActive: opts?.active ? user.isActive : undefined,
+            isComment: opts?.comment ? user.isComment : undefined,
+            createdAt: user.createdAt
         };
 
         return cleanUser;
@@ -65,14 +68,15 @@ export default class AuthService {
         }
     }
 
+    // Encodes user data and creates auth session via Lucia Auth v3
     async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe:boolean = false){
         const userAgent = headers.get('user-agent') ?? "Unknown";
         const userAgentHash = (userAgent === 'Unknown' ? userAgent : btoa(userAgent));
 
         const os = headers.get('os') ?? "Unknown";
-        const osHash = (userAgent === 'Unknown' ? userAgent : btoa(os));
+        const osHash = (os === 'Unknown' ? os : btoa(os));
 
-        return await lucia.createSession(userId, {
+        return lucia.createSession(userId, {
             ipCountry: headers.get('ipCountry'),
             os: osHash,
             host: headers.get('host'),
@@ -105,9 +109,9 @@ export default class AuthService {
 
         try {
             await resend.emails.send({
-                from: 'info@simmons.studio', // 'onboarding@resend.dev',
-                to: 'simmonsfrank@gmail.com',
-                subject: 'Verification Code | BusPlus',
+                from: 'onboarding@resend.dev',
+                to: email,
+                subject: 'Your Verification Code',
                 html: `<strong>
                     ${email}<br>
                     ${verificationCode}<br>
@@ -129,8 +133,6 @@ export default class AuthService {
             await db.$disconnect();
             return false;
         }
-
-        console.debug("Database Code: ",databaseCode);
 
         await db.emailVerificationCode.deleteMany({ where: { code: _code } });
         await db.$disconnect();
@@ -161,14 +163,13 @@ export default class AuthService {
     }
 
     async sendPasswordResetToken(email:string, verificationLink:string) {
-        // TODO: Implement this!!!
-        console.warn(`Password reset token to be sent to ${email}: ${verificationLink}`);
+        console.debug(`Password reset token to be sent to ${email}: ${verificationLink}`);
 
         try {
             await resend.emails.send({
-                from: 'info@simmons.studio', //'onboarding@resend.dev',
-                to: 'simmonsfrank@gmail.com',
-                subject: 'hello passengers',
+                from: 'onboarding@resend.dev',
+                to: email,
+                subject: 'Hello User',
                 html: `User email: <strong>${email}</strong><br>
                     <a href="${verificationLink}">Reset your password</a>`,
             });
@@ -179,8 +180,8 @@ export default class AuthService {
         }
     }
 
-    async validateEnrollment(registrationEmail:string): Promise<Partial<AutoEnrol>|null> {
-        console.warn(`validating new registration...`);
+    async validateAutoEnrollment(registrationEmail:string): Promise<Partial<AutoEnrol>|null> {
+        console.debug(`validating new registration...`);
 
         try {
             const enroller = await db.autoEnrol.findFirst({

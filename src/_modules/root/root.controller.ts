@@ -4,7 +4,7 @@ import consts from '~config/consts';
 class RootController {
   constructor(){}
 
-  async helloWorld({set, user, session, log}: any) {
+  async helloWorld({set, user, session}: any) {
     try {
       console.log("User: ",user);
       console.log("Session: ",session);
@@ -40,7 +40,7 @@ class RootController {
     }
 
     try {
-      return { message: `It's a beautiful ${getGreeting()} in ${timezone ?? 'your area'} isn't it ${params?.name || ''}.` }
+      return { message: `It's a beautiful ${getGreeting()} in ${timezone ?? 'your area'} isn't it ${params?.name || ''}?` }
     } catch (error) {
       console.error(error);
 
