@@ -9,14 +9,14 @@
 - CRON with predefined 24 hour cycle
 - basic endpoint logging
 - authentication/authorization middleware (public/private routes based on roles)
-- email verification codes
+- email verification system
 - change/reset password
 - modular design for easy expansion
 
 
 
 ## Getting Started
-To get started with this template, simply clone this repo, cd into the cloned folder and rename example_env to .env, paste this command into your terminal (in the cloned directory):
+To get started with this template, simply clone this repo, cd into the cloned folder, rename example_env to .env, paste this command into your terminal (in the cloned directory):
 ```bash
 bun install
 ```
@@ -53,6 +53,17 @@ The endpoint `/auth/register` allows you to create a new user account, while `/a
 This auth system uses cookies and JWT's.
 The cookie name along with other configuration settings can be set in the typescript file  `_config/consts.ts`
 
+
+# App Expansion
+## Modules
+To expand this application, add your modularized folder to `src/_modules/`. The convention here is to name your module folder using the same name as your endpoint prefix for example `auth` or `users`, within this folder include these files:
+`<module-name>-handler.ts`: "router" file with all possible endpoints, including ElysiaJS configuration for this module
+`<module-name>-controller.ts`: functions for different endpoints in this module
+`<module-name>-service.ts`: functions specific to this module that can be called from other modules
+`<module-name>-models.ts`: data models and schema  files
+`index.ts`: root folder that references every file in this module
+
+Once copied over, include the new module into Elysia by referencing it in the `src/server.ts` file.
 
 # Docker
 ## Build docker image
