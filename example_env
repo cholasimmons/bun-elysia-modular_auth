@@ -22,4 +22,4 @@ DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${HOST}:${POSTG
 # Resend
 # API used for sending emails, usually only for Dev mode
 
-RESEND_API_KEY=1234
+RESEND_API_KEY=re_1234
