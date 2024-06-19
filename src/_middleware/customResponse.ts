@@ -13,7 +13,7 @@ interface nResponse {
     message: string|null;
 }
 
-const customResponse = ({ response, set }:any): any => {    
+const customResponse = ({ response, set }:any): any => {
     
     // Override the response
     let msg: string|null = null;
@@ -48,6 +48,14 @@ const customResponse = ({ response, set }:any): any => {
         return false;
     }
 
+    // Check if response is a served asset (file for now)
+    function isResponseFile(r: any){
+        if(r?.name){
+            return true;
+        }
+        return false;
+    }
+
     const fixedResponse: {data: any, success: boolean, code: number, message: string|null, error?: null} = {
         data: dta,
         success: (set.status === 200 || set.status === 201 || set.status === 202),
@@ -65,7 +73,7 @@ const customResponse = ({ response, set }:any): any => {
 
     // console.debug("response: ",response);
     
-    return (response instanceof Object) ? fixedResponse : noResponse;
+    return isResponseFile(response) ? response : (response instanceof Object) ? fixedResponse : noResponse;
 };
 
 export default customResponse;

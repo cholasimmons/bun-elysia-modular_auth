@@ -3,17 +3,17 @@ import { CustomError } from "src/_modules/root/app.models";
 
 
   
-  export function handleNotFoundError(error: CustomError, set: any) {
+  function handleNotFoundError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
     return { message: 'Route not found 😔', code: set.status };
   }
   
-  export function handleInternalServerError(error: CustomError, set: any) {
+  function handleInternalServerError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { message: 'Internal Server Error ⚠️', code: set.status, error: error };
   }
   
-  export function handleValidation(error: CustomError, set: any) {
+  function handleValidation(error: CustomError, set: any) {
     console.error(error);
     
     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
@@ -36,34 +36,38 @@ import { CustomError } from "src/_modules/root/app.models";
     }
   }
   
-  export function handleParseError(error: CustomError, set: any) {
+  function handleParseError(error: CustomError, set: any) {
     console.warn(error);
     
     set.status = set.status;
     return { message: 'Parse Error 💬', code: set.status, error: error };
   }
   
-  export function handleUnknownError(error: CustomError, set: any) {
+  function handleUnknownError(error: CustomError, set: any) {
     console.error(error);
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status , message: 'An Unknown Error occurred' };
+    return { code: set.status , message: '😞 An internal error occurred' };
   }
 
-  export function handleDatabaseInitError(error: CustomError, set: any) {
+  function handleDatabaseInitError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'Database has not been initialized' };
   }
-  export function handleDatabaseValidationError(error: CustomError, set: any) {
+  function handleDatabaseValidationError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'Data does not adhere to schema standard' };
   }
-  export function handleRequestError(error: CustomError, set: any) {
+  function handleOAuth2Error(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: set.status , message: 'An authentication state error occured' };
+  }
+  function handleRequestError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'Database known request error' };
   }
 
   function handleAuthorizationError(error: CustomError, set: any){
-    // set.status = 403;
+    set.status = 500;
     console.error(error);
     
     return {
@@ -86,7 +90,7 @@ import { CustomError } from "src/_modules/root/app.models";
     error: Error | CustomError,
     set: any
   ) {
-    // console.error(error.name, );
+
     switch(error.name){
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
@@ -94,6 +98,8 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseValidationError(error, set);
       case 'PrismaClientKnownRequestError':
         return handleRequestError(error, set);
+      case 'Error':
+        return handleOAuth2Error(error, set);
     }
 
     switch (code) {

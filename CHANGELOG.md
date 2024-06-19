@@ -1,6 +1,31 @@
 # Changelog
 
 
+## [0.2.1] - 19-05-2024
+
+### Added
+
+- `@elyisajs/static` and `@elysiajs/htmx` plugins to serve assets + dynamic html files
+- `Logestic v1.1.1` for logging
+- `elysia-ip v1.0.5` to retrieve client IP 
+
+### Changed
+
+- Changed logger from internal to third-party, `Logestic`
+- Root endpoint now returns a basic HTML file
+
+### Fixed
+
+- **customResponse** function now accomodates returning a file as a response, used to return HTML
+
+### Upgraded
+
+- Bun, v1.1.8
+
+
+# ---
+
+
 ## [0.2.0] - 13-05-2024
 
 ### Added

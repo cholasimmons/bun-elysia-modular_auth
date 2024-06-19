@@ -1,15 +1,14 @@
-import { google, lucia } from "~config/lucia";
+import { lucia } from "~config/lucia";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
 import { generateId } from "lucia";
-import { OAuth2RequestError, generateCodeVerifier, generateState } from "arctic";
 import { encodeHex } from "oslo/encoding";
 import { sha256 } from "oslo/crypto";
 import { isWithinExpirationDate } from "oslo";
 import { AuthService } from ".";
 import { Role, User } from "@prisma/client";
 import consts from "~config/consts";
-import cookie from "@elysiajs/cookie";
+import { OAuth2Providers } from "./auth.models";
 
 
 const url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;
@@ -25,6 +24,11 @@ class AuthController {
         return 'Nothing to see here :)'
     }
 
+    loginForm({ request:{ headers }}: any){
+        const isBrowser = headers.get('accept').includes('text/html');
+
+        return isBrowser ? Bun.file('public/login.html') : { message: 'Use POST instead'}
+    }
 
     async login({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ cookieName }, authJWT, params }: any){
 
@@ -131,7 +135,6 @@ class AuthController {
             return { message: "An unknown login error occurred" };
         }
     }
-
 
 
     async signup({ set, request:{headers}, body: { firstname, lastname, email, phone, password, confirmPassword} } :any){
@@ -472,99 +475,120 @@ class AuthController {
     }
 
 
+    /* OAuth2 */
 
-    async getGoogle({set, cookie:{google_state, google_code_verifier}}:any) {
-        const state = generateState();
-        const codeVerifier = generateCodeVerifier();
-        const url:URL = await google.createAuthorizationURL(state, codeVerifier);
+    // Google
+    async getGoogle({set, oauth2, cookie:{google_state, google_code_verifier}}:any) {
+        const url = await oauth2.createURL("Google");
+        url.searchParams.set("access_type", "offline");
 
-        set.redirect = url.toString();
-        google_state.value = state;
-        google_state.set({
-            httpOnly: true,
-            secure: Bun.env.NODE_ENV === "production",
-            maxAge: 60 * 10, // 10 minutes
-            path: "/",
-            sameSite: "lax"
-        });
-        google_code_verifier.value = codeVerifier,
-        google_code_verifier.set({
-            httpOnly: true,
-            secure: Bun.env.NODE_ENV === "production",
-            maxAge: 60 * 10, // 10 minutes
-            path: "/"
-        }),
-        set.status = HttpStatusEnum.HTTP_302_FOUND;
-        // set.headers = headrs;
+        set.redirect = url.href;
+        return { message: `Connecting to ${OAuth2Providers.Google}` };
 
-        return;
+        // Previous OAuth2 implementation by Lucia
+        // const state = generateState();
+        // const codeVerifier = generateCodeVerifier();
+        // const url:URL = await google.createAuthorizationURL(state, codeVerifier);
+
+        
+        // google_state.value = state;
+        // google_state.set({
+        //     httpOnly: true,
+        //     secure: Bun.env.NODE_ENV === "production",
+        //     maxAge: 1000 * 60 * 15, // 15 minutes
+        //     path: "/",
+        //     sameSite: "lax"
+        // });
+        // google_code_verifier.value = codeVerifier,
+        // google_code_verifier.set({
+        //     httpOnly: true,
+        //     secure: Bun.env.NODE_ENV === "production",
+        //     maxAge: 1000 * 60 * 15, // 15 minutes
+        //     path: "/"
+        // }),
+        // set.status = HttpStatusEnum.HTTP_302_FOUND;
+        // set.redirect = url.toString();
+        // // set.headers = headrs;
+        // return;
     }
+    async getGoogleCallback({set, oauth2, query, request:{ headers }, cookie:{google_state, google_code_verifier, lucia_session}}:any) {
+        console.debug("Headers: ",headers)
 
-    async getGoogleCallback({set, query, headers, request, cookie:{google_state, google_code_verifier, lucia_session}}:any) {
-        const code = query.code?.toString() ?? null;
-        const codeVerifier = google_code_verifier.value;
-        const state = query.state?.toString() ?? null;
-        const stateCookie = google_state.value;
-        if (!code || !state || !stateCookie || state !== stateCookie) {
-            console.log(code, state, stateCookie);
-            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-            return;
-        }
+        const url:URL = await oauth2.createURL(OAuth2Providers.Google);
+        console.debug("Created URL: ",url);
+
+        const token = await oauth2.authorize(OAuth2Providers.Google);
+        console.debug("Google token: ",token);
+
+        // await oauth2.redirect(OAuth2Providers.Google, "/");
+        // send request to API with token
 
 
-        try {
-            const tokens = await google.validateAuthorizationCode(code, codeVerifier);
-            const googleUserResponse = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
-                headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`
-                }
-            });
-            const googleUserResult = await googleUserResponse.json();
-            const existingUser = await db.user.findUnique({
-                where: { google_id: googleUserResult.id}
-            });
+        // Previous OAuth2 implementation by Lucia
+        // const code = query.code?.toString() ?? null;
+        // const codeVerifier = google_code_verifier.value;
+        // const state = query.state?.toString() ?? null;
+        // const stateCookie = google_state.value;
+        // if (!code || !state || !stateCookie || state !== stateCookie) {
+        //     console.log(code, state, stateCookie);
+        //     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+        //     return;
+        // }
 
-            if (existingUser) {
-                const session = await authService.createLuciaSession(existingUser.id, headers);
-                const sessionCookie = lucia.createSessionCookie(session.id);
-                lucia_session.value = sessionCookie.value;
-                lucia_session.set(sessionCookie.attributes);
 
-                set.status = HttpStatusEnum.HTTP_302_FOUND;
-                set.headers['Set-Cookie'] = sessionCookie.serialize();
-                set.redirect = '/';
+        // try {
+        //     const tokens = await google.validateAuthorizationCode(code, codeVerifier);
+        //     const googleUserResponse = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+        //         headers: {
+        //             Authorization: `Bearer ${tokens.accessToken}`
+        //         }
+        //     });
+        //     const googleUserResult = await googleUserResponse.json();
+        //     const existingUser = await db.user.findUnique({
+        //         where: { google_id: googleUserResult.id}
+        //     });
 
-                return;
-            }
+        //     if (existingUser) {
+        //         const session = await authService.createLuciaSession(existingUser.id, headers);
+        //         const sessionCookie = lucia.createSessionCookie(session.id);
+        //         lucia_session.value = sessionCookie.value;
+        //         lucia_session.set(sessionCookie.attributes);
+
+        //         set.status = HttpStatusEnum.HTTP_302_FOUND;
+        //         set.headers['Set-Cookie'] = sessionCookie.serialize();
+        //         set.redirect = '/';
+
+        //         return;
+        //     }
     
-            const userId = generateId(15);
-            await db.user.create({ data: {
-                id: userId,
-                google_id: googleUserResult.id,
-                firstname: googleUserResult.firstname,
-                lastname: googleUserResult.lastname,
-                email: googleUserResult.email,
-                hashedPassword: googleUserResult.hashedPassword,
-                isActive: true,
-            } });
-            // , username: googleUserResult.login
+        //     const userId = generateId(15);
+        //     await db.user.create({ data: {
+        //         id: userId,
+        //         google_id: googleUserResult.id,
+        //         firstname: googleUserResult.firstname,
+        //         lastname: googleUserResult.lastname,
+        //         email: googleUserResult.email,
+        //         hashedPassword: googleUserResult.hashedPassword,
+        //         isActive: true,
+        //     } });
+        //     // , username: googleUserResult.login
 
-            const session = await authService.createLuciaSession(userId, request.headers);
-            const sessionCookie = lucia.createSessionCookie(session.id).serialize();
+        //     const session = await authService.createLuciaSession(userId, request.headers);
+        //     const sessionCookie = lucia.createSessionCookie(session.id).serialize();
 
-            set.headers["Set-Cookie"] = sessionCookie;
-            return { message: 'Successfully created Google User' };
-        } catch (e) {
-            console.error(e);
+        //     set.headers["Set-Cookie"] = sessionCookie;
+        //     return { message: 'Successfully created Google User' };
+        // } catch (e) {
+        //     console.error(e);
             
-            if (e instanceof OAuth2RequestError && e.message === "bad_verification_code") {
-                // invalid code
-                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-                return { meesage: 'Verification code is not 💯' };
-            }
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'An error occurred creating that Google account' };
-        }
+        //     if (e instanceof OAuth2RequestError && e.message === "bad_verification_code") {
+        //         // invalid code
+        //         set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+        //         return { meesage: 'Verification code is not 💯' };
+        //     }
+        //     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+        //     return { message: 'An error occurred creating that Google account' };
+        // }
     }
 }
 

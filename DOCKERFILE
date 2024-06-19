@@ -1,6 +1,6 @@
 # use the official Bun image
 # see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:1.1.6 as base
+FROM oven/bun:latest as base
 WORKDIR /usr/src/app
 
 
@@ -9,7 +9,10 @@ WORKDIR /usr/src/app
 FROM base AS install
 RUN mkdir -p /temp/dev
 COPY package.json bun.lockb /temp/dev/
+COPY prisma /temp/dev/prisma
 RUN cd /temp/dev && bun install --frozen-lockfile
+RUN cd /temp/dev && bunx prisma generate
+
 
 # install with --production (exclude devDependencies)
 # RUN mkdir -p /temp/prod
@@ -20,20 +23,17 @@ RUN cd /temp/dev && bun install --frozen-lockfile
 # copy node_modules from temp directory
 # then copy all (non-ignored) project files into the image
 FROM base AS prerelease
-COPY prisma prisma
-COPY src src
-COPY tsconfig.json tsconfig.json
 COPY --from=install /temp/dev/node_modules node_modules
-# RUN bunx prisma -v
-# RUN chown -R root:root /usr/src/app/node_modules/@prisma
-# RUN chmod -R a+x /usr/src/app/node_modules/@prisma
-# RUN bunx prisma generate
-# Manually copy these folders from host to the root directory
-COPY .prisma node_modules/.prisma
-COPY @prisma node_modules/@prisma
+COPY --from=install /temp/dev/package.json .
+COPY --from=install /temp/dev/prisma prisma
+COPY --from=install /temp/dev/node_modules/@prisma node_modules/@prisma
+COPY --from=install /temp/dev/node_modules/.prisma node_modules/.prisma
+COPY src src
+COPY tsconfig.json .
+
 
 # [optional] tests & build
-ENV NODE_ENV=production
+# ENV NODE_ENV=production
 # RUN bun test
 # RUN bun run build
 
@@ -49,7 +49,7 @@ ENV NODE_ENV=production
 USER bun
 EXPOSE 3000/tcp
 
-ENTRYPOINT [ "bun", "run", "/usr/src/app/src/index.ts" ]
+ENTRYPOINT [ "bun", "dev" ]
 
 # execute the binary!
 # CMD ["/usr/src/app/app"]

@@ -16,8 +16,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "bun build --compile --minify --sourcemap --target=bun-linux-x64 src/index.ts --outfile app",
     "dev": "bun run --watch src/index.ts",
-    "start": "bunx prisma db seed && NODE_ENV=production bun run src/index.ts",
-    "postinstall": "bunx prisma generate"
+    "start": "bunx prisma db seed && NODE_ENV=production bun run src/index.ts"
   },
   "dependencies": {
     "@bogeychan/elysia-logger": "^0.0.21",
@@ -27,16 +26,21 @@
     "@elysiajs/html": "^0.7.3",
     "@elysiajs/jwt": "^1.0.2",
     "@elysiajs/lucia-auth": "^0.0.0-exp-20230623.312",
+    "@elysiajs/static": "^1.0.3",
     "@elysiajs/swagger": "^1.0.4",
     "@lucia-auth/adapter-prisma": "^4.0.1",
     "@prisma/client": "^5.13.0",
-    "arctic": "^1.7.0",
+    "arctic": "^1.8.1",
     "chalk": "^5.3.0",
     "elysia": "^1.0.15",
     "elysia-helmet": "^1.0.2",
+    "elysia-htmx": "1.0.9",
     "elysia-http-error": "^1.1.2",
     "elysia-http-status-code": "^1.0.9",
-    "elysia-rate-limit": "^3.2.2",
+    "elysia-ip": "^1.0.5",
+    "elysia-oauth2": "^1.2.0",
+    "elysia-rate-limit": "^4.0.0",
+    "logestic": "^1.1.1",
     "lucia": "^3.2.0",
     "oslo": "^1.2.0",
     "resend": "^3.2.0"

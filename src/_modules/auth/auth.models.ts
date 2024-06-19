@@ -21,3 +21,11 @@ export const changePasswordBody = t.Object({
     newPassword: t.String({ minLength: 8, error: 'New password required too' }),
     confirmPassword: t.String({ minLength: 8 })
 })
+
+export const OAuth2Providers = {
+    Google: "Google",
+    VK: "VK",
+    Microsoft: "Microsoft",
+    Facebook: "Facebook",
+    Github: "Github"
+}

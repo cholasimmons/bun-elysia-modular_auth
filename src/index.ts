@@ -2,6 +2,7 @@ import { Elysia, error } from "elysia";
 
 // Configurations
 import consts from "~config/consts";
+import { lucia } from "~config/lucia";
 
 // Plugins
 import { swagger } from "@elysiajs/swagger";
@@ -10,6 +11,9 @@ import cron from "@elysiajs/cron";
 import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
 import cookie from "@elysiajs/cookie";
+import jwt from "@elysiajs/jwt";
+import { staticPlugin } from '@elysiajs/static';
+import { htmx } from "elysia-htmx";
 
 // Middleware
 import { bootLogger, gracefulShutdown, requestLogger } from "~utils/systemLogger";
@@ -21,8 +25,11 @@ import { sessionDerive } from "~middleware/session.derive";
 // Route Handler
 import { registerControllers } from "./server";
 import { logger } from "@bogeychan/elysia-logger";
-import jwt from "@elysiajs/jwt";
-import { lucia } from "~config/lucia";
+import { ip } from "elysia-ip";
+import { Logestic } from "logestic";
+
+
+
 
 
 try {
@@ -40,6 +47,9 @@ try {
     .state('timezone', Bun.env.TZ)
 
     /* Extensions */
+
+    // Fancy logs
+    .use(Logestic.preset('fancy'))
 
     // Log errors
     // .use(logger({ 
@@ -63,7 +73,7 @@ try {
       credentials: true,
       origin: /localhost.*/,
       // origin: (ctx) => ctx.headers.get('Origin'),
-      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Requested-With', 'X-Custom-Header', 'requestIP', 'Authentication-Method']
+      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'Authentication-Method']
     }))
 
     // Helmet security (might conflict with swagger)
@@ -111,13 +121,26 @@ try {
       }
     }))
 
+    // Serve HTML and other asset files
+    .use(staticPlugin({
+      ignorePatterns: ['*.mov'],
+      prefix: '/public',
+      assets: 'public'
+    }))
+
+    // HTMX plugin
+    .use(htmx())
+
+    // Get IP of client and add to context
+    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP"] }))
+
 
     // Life cycles
-    .derive(sessionDerive)
+    .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
     .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
     .onError(({ code, error, set }:any) => ErrorMessages(code, error, set)) // General Error catching system
     .onStop(gracefulShutdown)
-    .onRequest(requestLogger)
+    // .onRequest(requestLogger) // replaced by Logestic
     .mapResponse(customResponse);
 
     // ROUTES
@@ -128,6 +151,9 @@ try {
 
     // initialize server
     app.listen(PORT, bootLogger);
+  } else {
+    console.error("Can only be initialized using Bun");
+    
   }
 } catch (e) {
   console.log('Error firing up the server');

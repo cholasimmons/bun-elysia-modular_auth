@@ -2,8 +2,8 @@
 import Elysia, { t } from "elysia";
 import { AuthController } from ".";
 import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models";
-import { checkAuth, checkCookieAuth } from "~middleware/authChecks";
-
+import { checkAuth } from "~middleware/authChecks";
+import { oauth2 } from "elysia-oauth2";
 
 
 const authHandler = new Elysia({
@@ -11,10 +11,23 @@ const authHandler = new Elysia({
     detail: { description: 'Authentication endpoints', tags: ['Auth'] }
 })
 
+    // OAuth2 plugin
+    .use(oauth2({
+        Google: [
+            Bun.env.GOOGLE_CLIENT_ID ?? '',
+            Bun.env.GOOGLE_API_KEY ?? '',
+            `http://${Bun.env.HOST ?? ''}:${Bun.env.PORT ?? 80}/v1/auth/login/google/callback`
+        ]
+    }))
+
+
+    /* GET */
+
+
     .get('/', AuthController.root, {
     })
 
-    .get('/login', ()=>'use POST not GET')
+    .get('/login', AuthController.loginForm)
 
     .get('/login/google', AuthController.getGoogle)
 
