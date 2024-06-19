@@ -1,6 +1,18 @@
 # Changelog
 
 
+## [0.2.2] - 19-06-2024
+
+### Added
+
+- `docker-compose.yaml` file for Docker/Docker Swarm
+
+### Fixed
+
+- **DockerFile** to now be able to build to Docker
+
+
+
 ## [0.2.1] - 19-05-2024
 
 ### Added
