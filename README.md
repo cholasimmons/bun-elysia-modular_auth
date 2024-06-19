@@ -14,24 +14,25 @@
 - change/reset password
 - custom response model
 - modular design for easy expansion
+- Data Access Layer methodology
 
 
 
 ## Getting Started
-To get started with this template, simply clone this repo, cd into the cloned folder, rename example_env to .env, paste this command into your terminal (in the cloned directory):
+To get started with this template, simply clone this repo, cd into the cloned folder, rename _env to .env, paste this command into your terminal (in the cloned directory):
 ```bash
 bun install
 ```
 
 ## Database Migration
-To generate Prisma artifacts and migrate changes to the database, (you must have a running instance of PostgreSQL) [Laragon](https://laragon.org) is a quick and simple solution:
+To generate Prisma artifacts and migrate your latest database changes to the database, (you must have a running instance of PostgreSQL) [Laragon](https://laragon.org) is a quick and simple solution:
 ```bash
 bunx prisma generate && bunx prisma migrate deploy
 ```
 
 
 ## Development
-Ensure the system configuration file `src/_config/consts.ts` is to your liking. It includes data that is referenced across your entire app such as server name, API version, cookieName e.tc...
+Ensure the system configuration file `src/_config/consts.ts` is to your liking. It includes configurations that are referenced across your entire app such as server name, API version, cookieName e.tc...
 
 To start the development server run:
 ```bash
@@ -40,25 +41,29 @@ bun run dev
 
 Open http://localhost:3000/v1 with your browser or REST API Client to see the result.
 
-Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/swagger) and import it to
-[Insomnia REST API Client](https://insomnia.rest) to prepare all endpoints for you to test.
+Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/swagger) and import it to your
+[REST API Client](https://insomnia.rest) to prepare all endpoints for you to test.
 
 
 ## Authenticating a User
 The endpoint `/auth/register` allows you to create a new user account, while `/auth/login` logs you in.
 This auth system uses cookies and JWT's.
-The cookie name along with other configuration settings can be set in the typescript file `src/_config/consts.ts`
+The cookie name along with other configuration settings can be set in the typescript file `src/_config/consts.ts`.
+
+### **Client Headers**
+The headers sent from your client must specify `Authentication-Method` with either `JWT` or `Cookie`
 
 
 # App Expansion
 ## Modules
-To expand this application, add your modularized folder to `src/_modules/`.
-The convention here is to name your module folder using the same name as your endpoint prefix for example `auth`, `users` or `products`, within your module folder include these files:
-- `<module-name>-handler.ts`: "router" file with all possible endpoints, including ElysiaJS configuration for this module
-- `<module-name>-controller.ts`: functions for different endpoints in this module
-- `<module-name>-service.ts`: functions specific to this module that can be called from other modules
-- `<module-name>-models.ts`: data models and schema  files
-- `index.ts`: root folder that references every file in this module
+To expand this application's functionality, add your modularized folder to `src/_modules/`.
+The convention here is to name your module folder using the same name as your endpoint prefix for example `auth`, `users` or `products`.
+Within your module folder include these files:
+- `<module-name>-handler.ts`: "router" file with all possible endpoints, including ElysiaJS configuration for this specific module such as `prefix:` which determines the endpoint for this module.
+- `<module-name>-controller.ts`: functions for the different endpoints in this module
+- `<module-name>-service.ts`: service functions specific to this module that can be called from other modules
+- `<module-name>-models.ts`: DTO (Data-To-Object) data models and schema files
+- `index.ts`: root folder that references every file of this module
 
 Once copied over, include the new module into Elysia by referencing the handlers class in `src/server.ts` file. i.e: `.use(productsHandler)`
 

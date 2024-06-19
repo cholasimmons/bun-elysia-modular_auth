@@ -10,7 +10,7 @@
     "@prisma/client"
   ],
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "bun tsx prisma/seed.ts"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
