@@ -1,0 +1,94 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: cholasimmons/manyumba_zm:latest # simmonsstudiozm/elysia-auth:1 # 
+    # container_name: api
+    depends_on:
+      - db
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - HOST=172.19.0.2
+      - TZ="Africa/Lusaka"
+      - JWSCRT=simplytestingelysiasjwt
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - DATABASE_HOST=172.19.0.3
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=authdb
+      - DATABASE_URL="postgresql://$DATABASE_USER:$DATABASE_PASSWORD@$DATABASE_HOST:$DATABASE_PORT/$DATABASE_NAME?schema=public"
+
+      - PGADMIN_DEFAULT_EMAIL=root@root.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    networks:
+      elysia-internal:
+        ipv4_address: 172.19.0.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./prisma/migrations/0_init:/var/lib/docker/elysia/migrations  # Mount migrations directory
+    restart: never
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 2
+
+  db:
+    image: postgres:16.3-bullseye
+    # container_name: db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    # command: >
+      # sh -c "sleep 10 && bunx prisma migrate deploy"
+    environment:
+      - POSTGRES_NAME=authdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready"]
+    #   interval: 1m30s
+    #   timeout: 30s
+    #   retries: 5
+    #   start_period: 30s
+    networks:
+      elysia-internal:
+        ipv4_address: 172.19.0.3
+    volumes:
+      - /var/lib/docker/postgresql/data:/var/lib/postgresql/data
+      - /var/lib/docker/elysia/migrations:/docker-entrypoint-initdb.d  # Mount SQL migrations directory
+    # stdin_open: true
+    # tty: true
+
+
+  pgadmin:
+    image: dpage/pgadmin4:8.8
+    # container_name: pgadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=root@root.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - "80:8080"
+    networks:
+      elysia-internal:
+        ipv4_address: 172.19.0.5
+    volumes:
+      - /var/lib/docker/pgadmin/data:/var/lib/pgadmin/data
+
+networks:
+  elysia-internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.19.0.0/24"
+
+# volumes:
+#   postgres_data:
+#   minio_data:
+#   pgadmin_data:
+#   dbmigration_data:

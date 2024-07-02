@@ -9,13 +9,12 @@ generator client {
   binaryTargets = ["native"]
   // binaryTargets = ["native", "debian-openssl-1.1.x"] // Use this instead, to run inside Docker
   // binaryTargets = ["native", "debian-openssl-3.0.x"] // for Ubuntu 22.04 / Debian
-  // binaryTargets = ["native", "windows"]
   previewFeatures = ["multiSchema"]
 }
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["users", "logs"]
+  schemas  = ["users"]
 }
 
 

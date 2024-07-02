@@ -13,21 +13,17 @@ TZ="Africa/Lusaka"
 
 # Postgres
 
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_PORT=5432
-DATABASE_NAME=my_db
-DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${HOST}:${POSTGRES_PORT}/${DATABASE_NAME}?schema=public"
+DATABASE_USER=postgres
+DATABASE_PASSWORD=postgres
+DATABASE_PORT=5432
+DATABASE_NAME=authdb
+DATABASE_URL="postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${HOST}:${DATABASE_PORT}/${DATABASE_NAME}?schema=public"
 
 # Resend
 # API used for sending emails, usually only for Dev mode
 
-<<<<<<< HEAD:example_env
-RESEND_API_KEY=1234
+RESEND_API_KEY=re_1234
 
 # OAuth2 API
-GOOGLE_CLIENT_ID=...
-GOOGLE_API_KEY=...
-=======
-RESEND_API_KEY=re_1234
->>>>>>> cb7d914b96e717aa0938838dadec6f87b9374608:_env
+GOOGLE_CLIENT_ID=""
+GOOGLE_API_KEY=""

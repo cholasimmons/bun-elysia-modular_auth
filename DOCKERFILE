@@ -12,6 +12,7 @@ COPY package.json bun.lockb /temp/dev/
 COPY prisma /temp/dev/prisma
 RUN cd /temp/dev && bun install --frozen-lockfile
 RUN cd /temp/dev && bunx prisma generate
+RUN cd /temp/dev && bunx prisma db seed
 
 
 # install with --production (exclude devDependencies)
