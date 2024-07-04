@@ -132,7 +132,7 @@ try {
     .use(htmx())
 
     // Get IP of client and add to context
-    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP"] }))
+    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "Authentication-Method"] }))
 
 
     // Life cycles

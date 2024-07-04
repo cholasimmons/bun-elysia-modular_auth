@@ -3,7 +3,7 @@ import Elysia, { t } from "elysia";
 import { RootController } from "~modules/root";
 import { checkAuth, checkForProfile } from "~middleware/authChecks";
 
-const rootHandler = new Elysia({ prefix: '', tags: ['root'] })
+const rootHandler = new Elysia({ detail: { description:'User management endpoint', tags: ['root']} })
 
     .get('/', RootController.helloWorld, {
         detail: {description: 'Hello World' },

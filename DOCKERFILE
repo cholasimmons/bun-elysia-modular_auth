@@ -27,8 +27,8 @@ FROM base AS prerelease
 COPY --from=install /temp/dev/node_modules node_modules
 COPY --from=install /temp/dev/package.json .
 COPY --from=install /temp/dev/prisma prisma
-COPY --from=install /temp/dev/node_modules/@prisma node_modules/@prisma
-COPY --from=install /temp/dev/node_modules/.prisma node_modules/.prisma
+#COPY --from=install /temp/dev/node_modules/@prisma node_modules/@prisma
+#COPY --from=install /temp/dev/node_modules/.prisma node_modules/.prisma
 COPY src src
 COPY tsconfig.json .
 
