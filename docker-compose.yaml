@@ -1,18 +1,18 @@
-name: 'manyumba'
+name: 'elysia_auth'
 
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
-      # image: cholasimmons/manyumba_zm:latest # simmonsstudiozm/elysia-auth:1 # 
+      # image: simmonsstudiozm/elysia-auth:1 # 
     depends_on:
       - db
     environment:
       - NODE_ENV=development
       - PORT=3000
       - HOST=0.0.0.0
-      - TZ="Africa/Lusaka"
+      #- TZ=Africa/Harare
       - JWSCRT=simplytestingelysiasjwt
       - DATABASE_USER=postgres
       - DATABASE_PASSWORD=postgres
@@ -20,7 +20,6 @@ services:
       - DATABASE_PORT=5432
       - DATABASE_NAME=authdb
       - DATABASE_URL="postgresql://postgres:postgres@172.10.0.3:5432/authdb?schema=public"
-      # - DATABASE_URL="postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?schema=public"
     networks:
       api_net:
         ipv4_address: 172.10.0.2

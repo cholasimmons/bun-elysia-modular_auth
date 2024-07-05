@@ -7,7 +7,7 @@ import { lucia } from "~config/lucia";
 // Plugins
 import { swagger } from "@elysiajs/swagger";
 import { rateLimit } from "elysia-rate-limit";
-import cron from "@elysiajs/cron";
+import cron, { Patterns } from "@elysiajs/cron";
 import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
 import cookie from "@elysiajs/cookie";
@@ -29,9 +29,6 @@ import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
 
 
-
-
-
 try {
   if (import.meta.main) {
     const PORT = Bun.env.PORT || 3000;
@@ -44,7 +41,7 @@ try {
 
     // State
     .state('maintenanceMode', false)
-    .state('timezone', Bun.env.TZ)
+    .state('timezone', Bun.env.TZ || 'Europe/London')
 
     /* Extensions */
 
@@ -79,10 +76,7 @@ try {
     // Helmet security (might conflict with swagger)
     .use(helmet({
       contentSecurityPolicy: {
-        useDefaults: true,
-        directives: {
-          "script-src": ["'self'", "https://cdn.jsdelivr.net/"],
-        },
+        useDefaults: true
       }
     }))
 
@@ -92,7 +86,7 @@ try {
     // JWT
     .use(
       jwt({
-          name: 'authJWT',
+          name: Bun.env.JWTNAME,
           secret: Bun.env.JWSCRT!,
           exp: `${consts.auth.jwtMaxAge}d`
       })
@@ -104,9 +98,9 @@ try {
     // CRON soul manager
     .use(cron({
       name: 'midnight-daily',
-      pattern: '0 0 * * *',
+      pattern: Patterns.EVERY_DAY_AT_MIDNIGHT,
       // '*/1 * * * 1-6', // seconds (optional), minute, hour, day of the month, month, day of the week (RTL)
-      timezone: Bun.env.TZ || 'Africa/Lusaka',
+      timezone: Bun.env.TZ || 'Europe/London',
       startAt: '',
       stopAt: '',
       maxRuns: undefined,

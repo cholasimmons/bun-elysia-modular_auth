@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.3] - 05-07-2024
+
+### Added
+
+- `Patterns` extension from `@elysiajs/cron` to easily set time intervals in CRON
+- PrismaORM now allows for multi schema files (after v5.15.0). Name schema files accordingly and place them inside `./prisma/schema` folder e.g: `./prisma/schema/users.prisma`, also update your VScode Prisma extension. [Docs](prisma.io/blog/oranize-your-prisma-schema-with-multi-file-support)
+
+### Changed
+
+- Default Docker internal network renamed to "api_net" and now uses 172.10.0.*/16 IPv4 addresses
+- System default timezone changed to "Europe/London" if TZ value not present in .env file. Note: for Lusaka you can use "Africa/Harare"
+- Moved JWT name to env file as JWTNAME
+
+### Fixed
+
+- **DockerFile** better optimized for smaller Docker builds
+
+### Removed
+
+- "directives' fix from `elysia-helmet` package was fixed, no need for this anymore
+
+### Upgraded
+
+- Bun, v1.1.18
+- Elysia, 1.0.27
+
 
 ## [0.2.2] - 19-06-2024
 

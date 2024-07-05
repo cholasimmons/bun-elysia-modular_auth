@@ -2,7 +2,9 @@
 NODE_ENV=development
 PORT=3000
 HOST=localhost
-TZ="Africa/Lusaka"
+JWSCRT=asecurepassw0rd
+JWTNAME=authJWT
+#TZ=Africa/Harare # For Lusaka too
 
 # This was inserted by `prisma init`:
 # Environment variables declared in this file are automatically made available to Prisma.

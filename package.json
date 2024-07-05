@@ -32,8 +32,8 @@
     "@prisma/client": "^5.16.1",
     "arctic": "^1.9.1",
     "chalk": "^5.3.0",
-    "elysia": "^1.0.26",
-    "elysia-helmet": "^1.0.2",
+    "elysia": "^1.0.27",
+    "elysia-helmet": "^2.0.0",
     "elysia-htmx": "1.0.9",
     "elysia-http-error": "^1.2.0",
     "elysia-http-status-code": "^1.0.9",
@@ -46,9 +46,9 @@
     "resend": "^3.4.0"
   },
   "devDependencies": {
-    "bun-types": "^1.1.17",
+    "bun-types": "^1.1.18",
     "prisma": "^5.16.1",
-    "tsx": "^4.16.0"
+    "tsx": "^4.16.2"
   },
   "module": "index.js"
 }
