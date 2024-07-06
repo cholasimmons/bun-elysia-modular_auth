@@ -20,7 +20,7 @@ class AuthController {
     }
 
     root({ cookie }: any):string{
-        console.log('cookie: ',cookie);
+        // console.log('cookie: ',cookie);
         return 'Nothing to see here :)'
     }
 

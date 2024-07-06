@@ -46,7 +46,7 @@ CREATE TABLE "users"."sessions" (
     "user_agent_hash" TEXT,
     "os" TEXT,
     "ip_country" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
 );

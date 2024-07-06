@@ -1,5 +1,15 @@
 # Changelog
 
+
+## [0.2.4] - 06-07-2024
+
+### Added
+
+- "directives' fix from `elysia-helmet` package was returned as Helmet v.2.0.0 seems to be incompatible with Swagger again
+- More recent SQL migration file
+
+
+
 ## [0.2.3] - 05-07-2024
 
 ### Added

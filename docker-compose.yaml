@@ -11,7 +11,7 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - HOST=0.0.0.0
+      - HOST=172.10.0.2
       #- TZ=Africa/Harare
       - JWSCRT=simplytestingelysiasjwt
       - DATABASE_USER=postgres
@@ -20,6 +20,7 @@ services:
       - DATABASE_PORT=5432
       - DATABASE_NAME=authdb
       - DATABASE_URL="postgresql://postgres:postgres@172.10.0.3:5432/authdb?schema=public"
+    command: sh -c "sleep 10 && bunx prisma generate && bun tsx prisma/seed.ts"
     networks:
       api_net:
         ipv4_address: 172.10.0.2
@@ -30,8 +31,8 @@ services:
   db:
     image: postgres:16.3-bullseye
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    #ports:
+    #  - "5432:5432"
     environment:
       - POSTGRES_DB=authdb
       - POSTGRES_USER=postgres
@@ -59,7 +60,7 @@ services:
       - PGADMIN_DEFAULT_EMAIL=root@root.com
       - PGADMIN_DEFAULT_PASSWORD=root
     ports:
-      - "80:8080"
+      - "80:80"
     networks:
       api_net:
         ipv4_address: 172.10.0.5

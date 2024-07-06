@@ -1,32 +1,33 @@
-import { PrismaClient, Role } from '@prisma/client';
-const prisma = new PrismaClient();
+import { Role } from '@prisma/client';
+import { db } from '~config/prisma';
 
 async function main() {
-  await prisma.$connect();
+  await db.$connect();
 
-  const enrollersCount = await prisma.autoEnrol.count();
+  const enrollersCount = await db.autoEnrol.count();
 
     if (enrollersCount < 1) {
-        console.log(`Seeding autoEnrol in ${Bun.env.NODE_ENV ?? ''}...`);
+        console.log(`Seeding autoEnrol in...`);
 
-        await prisma.autoEnrol.createMany({
+        await db.autoEnrol.createMany({
             data: [
                 { email: 'myaddress@email.com', names: 'Just Chola', phone: '1234', roles: [Role.ADMIN], supportLevel: 3 },
             ]
         })
     }
-
-  // Close Prisma connection
-  await prisma.$disconnect();
 }
 
 
-main().then(async () => {
+main().then(() => {
     console.log('✅ Seed successful');
     
-    // await prisma.$disconnect();
-}).catch(async (e) => {
+}).catch((e) => {
     console.error('❌ Error seeding:', e);
-    // await prisma.$disconnect()
     process.exit(1)
+}).finally(async ()=>{
+    // Close db connection
+    await db.$disconnect();
+
+    console.log("Seed complete!");
+    
 })

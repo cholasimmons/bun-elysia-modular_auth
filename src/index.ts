@@ -76,7 +76,10 @@ try {
     // Helmet security (might conflict with swagger)
     .use(helmet({
       contentSecurityPolicy: {
-        useDefaults: true
+        useDefaults: true,
+        directives: {
+          "script-src": ["'self'", "https://cdn.jsdelivr.net/"],
+        },
       }
     }))
 

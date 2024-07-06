@@ -6,15 +6,13 @@
 
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native"]
-  // binaryTargets = ["native", "debian-openssl-1.1.x"] // Use this instead, to run inside Docker
-  // binaryTargets = ["native", "debian-openssl-3.0.x"] // for Ubuntu 22.04 / Debian
+  binaryTargets = ["native"] // "debian-openssl-1.1.x"
   previewFeatures = ["prismaSchemaFolder", "multiSchema"]
 }
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["users"]
+  schemas  = ["users", "logs"]
 }
 
 
@@ -139,7 +137,6 @@ enum Role {
   SUPPORT // system customer service
   SUPERVISOR // overall manager
   ADMIN // system master
-
   @@schema("users")
 }
 
@@ -147,13 +144,11 @@ enum Gender {
   MALE
   FEMALE
   OTHER
-
   @@schema("users")
 }
 
 enum DocumentType {
   NRC
   PASSPORT
-
   @@schema("users")
 }

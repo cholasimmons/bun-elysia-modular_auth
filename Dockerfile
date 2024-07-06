@@ -1,6 +1,6 @@
 # use the official Bun image
 # see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:slim as base
+FROM oven/bun:1.1.18-slim as base
 WORKDIR /usr/src/app
 
 
@@ -12,7 +12,7 @@ COPY package.json bun.lockb /temp/dev/
 COPY prisma /temp/dev/prisma
 RUN cd /temp/dev && bun install --frozen-lockfile
 RUN cd /temp/dev && bunx prisma generate
-RUN cd /temp/dev && bunx prisma db seed
+#RUN cd /temp/dev && bunx prisma db seed
 
 
 # install with --production (exclude devDependencies)
@@ -25,10 +25,11 @@ RUN cd /temp/dev && bunx prisma db seed
 # then copy all (non-ignored) project files into the image
 FROM base AS prerelease
 COPY --from=install /temp/dev/node_modules node_modules
-COPY --from=install /temp/dev/package.json .
-COPY --from=install /temp/dev/prisma prisma
 #COPY --from=install /temp/dev/node_modules/@prisma node_modules/@prisma
 #COPY --from=install /temp/dev/node_modules/.prisma node_modules/.prisma
+COPY --from=install /temp/dev/package.json .
+COPY --from=install /temp/dev/prisma prisma
+COPY public public
 COPY src src
 COPY tsconfig.json .
 
