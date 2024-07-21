@@ -2,9 +2,9 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: [ "build" ]
+  #pull_request:
+    #branches: [ "master" ]
 
 jobs:
   build:
@@ -29,6 +29,6 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/elysia-auth:slim
-        platforms: linux/amd64
+        tags: simmonsstudiozm/elysia-auth:slim
+        platforms: linux/amd64 linux/arm64
         #run: docker build . --file Dockerfile --tag ${{ secrets.DOCKER_HUB_USERNAME }}/elysia-auth:slim
