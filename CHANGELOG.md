@@ -5,7 +5,7 @@
 
 ### Added
 
-- `swaggerDetails()` utility function to make it easier to create title and description for swagger docs
+- `swaggerDetails()` utility function to make it easier to create "summary" and "description" entries for swagger
 
 ### Changed
 
@@ -18,7 +18,7 @@
 - Bun, v1.1.20
 - Elysia, 1.1.2 (1.1.3 problematic)
 - Swagger, 1.0.5 (1.1.0 problematic)
-- Prisma 5.17.0
+- Prisma 5.15.1 (5.17.0 problematic)
 - `docker-compose.yml` and `Dockerfile` improved
 
 ### Removed

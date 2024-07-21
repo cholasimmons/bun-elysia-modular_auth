@@ -1,22 +1,21 @@
-# use the official Bun image
-# see all versions at https://hub.docker.com/r/oven/bun/tags
+# see all official Bun versions at https://hub.docker.com/r/oven/bun/tags
 FROM oven/bun:slim AS base
+
+# Create group and user
+RUN addgroup --system --gid 1001 bunjs
+RUN adduser --system --uid 1001 elysiajs
+
+# Set up application
 WORKDIR /usr/src/app
 
-
-# install dependencies into temp directory
-# this will cache them and speed up future builds
+# install dependencies into temp directory (cache and speed for future builds)
 FROM base AS install
 RUN mkdir -p /temp/dev
 COPY package.json bun.lockb /temp/dev/
 COPY prisma /temp/dev/prisma
 COPY tsconfig.json /temp/dev/
 ENV NODE_ENV=development
-# RUN apt-get update -y && apt-get install -y openssl build-essential libpq-dev
-USER root
-RUN cd /temp/dev && bun install
-# --frozen-lockfile
-# RUN mkdir -p /temp/dev/node_modules/@prisma && mkdir -p /temp/dev/node_modules/.prisma
+RUN cd /temp/dev && bun install --frozen-lockfile
 RUN cd /temp/dev && bunx prisma generate
 
 # install with --production (exclude devDependencies)
@@ -40,6 +39,8 @@ COPY src src
 # RUN bun test
 # RUN bun run build
 
+# Set ownership of the application files
+RUN chown -R elysiajs:bunjs /usr/src/app
 
 # copy production dependencies and source code into final image
 # FROM base AS release
@@ -48,10 +49,11 @@ COPY src src
 # COPY --from=prerelease /usr/src/app/ .
 # COPY --from=prerelease /usr/src/app/package.json .
 
-# run the app
-USER bun
+# Switch to non-root user for added security
+USER elysiajs
 EXPOSE 3000/tcp
 
+# run the app
 CMD [ "bun", "dev" ]
 
 # execute the binary!
