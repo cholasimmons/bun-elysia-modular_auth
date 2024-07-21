@@ -67,7 +67,8 @@ export const ProfileQueriesDTO = t.Object({
     account: t.Optional(t.BooleanString({ default: false })),
 })
 export const UserQueriesDTO = t.Object({
-    profile: t.Optional(t.Boolean({default: false})),
+    isActive: t.Optional(t.BooleanString()),
+    profile: t.Optional(t.BooleanString({default: false})),
 })
 
 

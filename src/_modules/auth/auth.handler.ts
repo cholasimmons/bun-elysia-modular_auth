@@ -1,49 +1,62 @@
 
 import Elysia, { t } from "elysia";
-import { AuthController } from ".";
+import { AuthController, AuthService } from ".";
 import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models";
 import { checkAuth } from "~middleware/authChecks";
 import { oauth2 } from "elysia-oauth2";
+import { swaggerDetails } from "~utils/response_helper";
 
+const authService = new AuthService();
+const authController = new AuthController(authService);
 
-const authHandler = new Elysia({
+export const AuthHandler = new Elysia({
     prefix: '/auth',
     detail: { description: 'Authentication endpoints', tags: ['Auth'] }
 })
-
+    
     // OAuth2 plugin
-    .use(oauth2({
-        Google: [
-            Bun.env.GOOGLE_CLIENT_ID ?? '',
-            Bun.env.GOOGLE_API_KEY ?? '',
-            `http://${Bun.env.HOST ?? ''}:${Bun.env.PORT ?? 80}/v1/auth/login/google/callback`
-        ]
-    }))
+    // .use(oauth2({
+    //     Google: [
+    //         Bun.env.GOOGLE_CLIENT_ID ?? '',
+    //         Bun.env.GOOGLE_API_KEY ?? '',
+    //         `http://${Bun.env.HOST ?? ''}:${Bun.env.PORT ?? 80}/v1/auth/login/google/callback`
+    //     ]
+    // }))
 
 
     /* GET */
 
 
-    .get('/', AuthController.root, {
+    .get('/', authController.root, {
+        detail: swaggerDetails('/','Endpoint does not perform any action'),
     })
 
-    .get('/login', AuthController.loginForm)
+    .get('/login', authController.loginForm, {
+        detail: swaggerDetails('Sign In [GET]', 'Advises Developer to use POST method'),
+    })
 
-    .get('/login/google', AuthController.getGoogle)
+    .get('/login/google', authController.getGoogle, {
+        detail: swaggerDetails('Sign In | Google', 'Logs you in to your Google Account'),
+    })
 
-    .get('/login/google/callback', AuthController.getGoogleCallback)
+    .get('/login/google/callback', authController.getGoogleCallback, {
+        detail: swaggerDetails('Callback | Google', 'Endpoint for successful Google login'),
+    })
 
-    .get('/reset-password/:token', AuthController.getResetPassToken, {
+    .get('/reset-password/:token', authController.getResetPassToken, {
+        detail: swaggerDetails('Reset Password Token', 'Gets a reset password token'),
         params: t.Object({ token: t.String() }),
         // body: t.Object({ password: t.String() })
     })
 
-    .get('/email-verification/:code', AuthController.getEmailVerificationToken, {
+    .get('/email-verification/:code', authController.getEmailVerificationToken, {
+        detail: swaggerDetails('Email Verification Token', 'Gets an email verification token'),
         params: t.Object({ code: t.String() }),
         query: t.Object({ email: t.String({ format: "email", default: "abc@email.com", error: "A valid email address is required"}) }),
     })
 
-    .get('/sessions', AuthController.getAllMySessions, {
+    .get('/sessions', authController.getAllMySessions, {
+        detail: swaggerDetails('Get All User Sessions', 'Fetches all sessions for current User'),
         beforeHandle: [checkAuth]
     })
 
@@ -51,7 +64,7 @@ const authHandler = new Elysia({
     /* POST */
 
 
-    .post('/login', AuthController.login, {
+    .post('/login', authController.login, {
         body: LoginUserDTO,
         response: {
             200: t.Object({ data: t.Any(), message: t.String({ default: 'Successfully logged in' }) }),
@@ -61,13 +74,10 @@ const authHandler = new Elysia({
             406: t.Object({ message: t.String({ default: 'Invalid credentials' }) }),
             500: t.Object({ message: t.String({ default: 'An unknown login error occurred' }) }),
         },
-        detail:{
-            description: 'Signs in User with previously registered account',
-            summary: 'Sign in'
-        }
+        detail: swaggerDetails('Sign in', 'Signs in User with previously registered account'),
     })
 
-    .post('/register', AuthController.signup, {
+    .post('/register', authController.signup, {
         body: RegisterUserDTO,
         response: {
             201: t.Object({ message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
@@ -76,13 +86,11 @@ const authHandler = new Elysia({
             409: t.Object({ message: t.String({ default: 'That email address is already taken' }) }),
             500: t.Object({ message: t.String({ default: 'An unknown auth error occurred' }) })
         },
-        detail:{
-            description: 'Creates a new User Account',
-            summary: 'Register New User'
-        }
+        
+        detail: swaggerDetails('Register New User','Creates a new User Account'),
     })
 
-    .post('/logout', AuthController.logout, {
+    .post('/logout', authController.logout, {
         beforeHandle: checkAuth,
         response: {
             200: t.Union([
@@ -91,35 +99,41 @@ const authHandler = new Elysia({
             ]),
             401: t.Object({ message: t.String({ default: 'No access token present' }) }),
             405: t.Object({ message: t.String({ default: 'You were not logged in' }) })
-        }
+        },
+        detail: swaggerDetails('Sign Out','Invalidates User\'s current session'),
     })
 
-    .post('/email-verification', AuthController.postEmailVerification, {
+    .post('/email-verification', authController.postEmailVerification, {
         response: {
             200: t.Object({ message: t.String({ default: 'Verification code sent to user email'}) }),
             500: t.Object({ message: t.String({ default: 'Unable to send verification code'}) }),
-        }
+        },
+        detail: swaggerDetails('Send Email Verification Code','Sends a verification code to provided email address'),
     })
 
-    .post('/forgot-password', AuthController.postForgotPassword, {
-        body: t.Object({ email: t.String({ format: 'email', default:'abc@email.com' }) })
+    .post('/forgot-password', authController.postForgotPassword, {
+        body: t.Object({ email: t.String({ format: 'email', default:'abc@email.com' }) }),
+        detail: swaggerDetails('Forgot Password','Sends password reset link to provided email if it exists'),
     })
 
-    .post('/reset-password', AuthController.postResetPass)
+    .post('/reset-password', authController.postResetPass, {
+        detail: swaggerDetails('Reset Password', 'Sends password reset link to current User\'s email if verified'),
+    })
 
-    .post('/reset-password/:token', AuthController.postResetPassToken, {
+    .post('/reset-password/:token', authController.postResetPassToken, {
         params: t.Object({ token: t.String() }),
-        body: t.Object({ password: t.String(), confirmPassword: t.String() })
+        body: t.Object({ password: t.String(), confirmPassword: t.String() }),
+        detail: swaggerDetails('Reset Password Token','Creates a new User Account'),
     })
 
-    // .post('/resend-verification', AuthController.postEmailVerification, {
+    // .post('/resend-verification', authController.postEmailVerification, {
     //     response: {
     //         200: t.Object({ message: t.String({ default: 'Verification code sent to user email'}) }),
     //         500: t.Object({ message: t.String({ default: 'Unable to send verification code'}) }),
     //     }
     // })
 
-    .post('/change-password', AuthController.getChangePassword, {
+    .post('/change-password', authController.getChangePassword, {
         beforeHandle: checkAuth,
         body: changePasswordBody,
         response: {
@@ -130,7 +144,6 @@ const authHandler = new Elysia({
             400: t.Object({ message: t.String({ default: 'You must be signed in' })}),
             404: t.Object({ message: t.String({ default: 'Your passwords do not match' })}),
             500: t.Object({ message: t.String({ default: 'Unable to change password' })})
-        }
+        },
+        detail: swaggerDetails('Change Password','Creates new password by entering current password'),
     })
-
-export default authHandler;

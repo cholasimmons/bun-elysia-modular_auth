@@ -5,36 +5,44 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      # image: simmonsstudiozm/elysia-auth:1 # 
+      labels:
+        - studio.simmons=simmonsstudiozm/elysia-auth:slim
+    # image: simmonsstudiozm/elysia-auth:slim
+    privileged: true
     depends_on:
       - db
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - HOST=172.10.0.2
-      #- TZ=Africa/Harare
+      - HOST=api
+      - TZ=Africa/Harare
+      - JWTNAME=jwtAuth
       - JWSCRT=simplytestingelysiasjwt
+      - RESEND_API_KEY=re_1234
       - DATABASE_USER=postgres
       - DATABASE_PASSWORD=postgres
-      - DATABASE_HOST=172.10.0.3
+      - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - DATABASE_NAME=authdb
-      - DATABASE_URL="postgresql://postgres:postgres@172.10.0.3:5432/authdb?schema=public"
-    command: sh -c "sleep 10 && bunx prisma generate && bun tsx prisma/seed.ts"
+      - DATABASE_URL="postgresql://postgres:postgres@db:5432/authdb?schema=public"
+    #command: "/bin/sh -c 'sleep 10 && bun prisma:seed'"
+    #command: "/bin/sh -c 'bunx prisma migrate deploy'"
+    volumes:
+      - api_migrations:/usr/src/app/prisma/migrations/0_init
     networks:
-      api_net:
-        ipv4_address: 172.10.0.2
-    ports:
-      - "3000:3000"
+      default:
+        aliases:
+          - api
+    ports: ["3000:3000"]
     restart: unless-stopped
 
   db:
     image: postgres:16.3-bullseye
     restart: unless-stopped
-    #ports:
-    #  - "5432:5432"
+    ports:
+      - "5432:5432"
     environment:
-      - POSTGRES_DB=authdb
+      - POSTGRES_NAME=authdb
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     # healthcheck:
@@ -44,11 +52,12 @@ services:
     #   retries: 5
     #   start_period: 30s
     networks:
-      api_net:
-        ipv4_address: 172.10.0.3
+      default:
+        aliases:
+          - db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./prisma/migrations/0_init:/docker-entrypoint-initdb.d  # Mount SQL migrations directory
+      - pgdata:/var/lib/postgresql/data
+      - api_migrations:/docker-entrypoint-initdb.d:ro  # Mount SQL migrations directory as Read-only
 
   pgadmin:
     image: dpage/pgadmin4:8.8
@@ -62,18 +71,20 @@ services:
     ports:
       - "80:80"
     networks:
-      api_net:
-        ipv4_address: 172.10.0.5
+      default:
+        aliases:
+          - pgadmin
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
-networks:
-  api_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.10.0.0/16
+# networks:
+#   api_net:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 172.10.0.0/16
 
 volumes:
-  postgres_data:
+  api_migrations:
+  pgdata:
   pgadmin_data:

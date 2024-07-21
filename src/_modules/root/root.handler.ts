@@ -2,26 +2,31 @@
 import Elysia, { t } from "elysia";
 import { RootController } from "~modules/root";
 import { checkAuth, checkForProfile } from "~middleware/authChecks";
+import { swaggerDetails } from "~utils/response_helper";
 
-const rootHandler = new Elysia({ detail: { description:'User management endpoint', tags: ['root']} })
+const root = new RootController();
 
-    .get('/', RootController.helloWorld, {
-        detail: {description: 'Hello World' },
+export const RootHandler = new Elysia({ detail: { description:'Root endpoints', tags: ['Home']} })
+
+    .get('/', root.helloWorld, {
+        detail: swaggerDetails('Hello World'),
     }) // main route
 
-    .get('/hello', RootController.helloTime, {
-        beforeHandle: [checkAuth],
-        detail: {description: 'Greeting + time' },
+    .get('/hello', root.helloTime, {
+        // beforeHandle: [checkAuth],
+        detail: swaggerDetails('Timezone Greeting'),
     }) // hello route
       
-    .get('/hello/:name', RootController.helloTime, {
-        beforeHandle: [checkAuth, checkForProfile],
-        detail: {description: 'Greeting + time' },
+    .get('/hello/:name', root.helloTime, {
+        detail: swaggerDetails('Timezone Greeting + Name'),
         params: t.Object({ name: t.String() })
     }) // hello + name route
     
-    .get('/htmx', RootController.htmx, {
-        detail: {description: 'HTMX test route' }
+    .get('/htmx', root.htmx, {
+        detail: swaggerDetails('HTMX', 'HTMX test route')
     }) // htmx test route
 
-export default rootHandler;
+    .get('/health', root.health, {
+        // beforeHandle: [checkAuth],
+        detail: swaggerDetails('System Health', 'Check system health'),
+    }) // hello route

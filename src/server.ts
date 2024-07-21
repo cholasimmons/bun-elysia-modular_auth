@@ -1,19 +1,23 @@
 import { Elysia } from "elysia";
 
 // Route Handlers
-import { rootHandler } from "~modules/root";
-import { authHandler } from "~modules/auth";
-import { usersHandler } from "~modules/users";
+import { RootHandler } from "~modules/root/index";
+import { AuthHandler } from "~modules/auth/index";
+import { UsersHandler } from "~modules/users/index";
 
 
 // ROUTES
 export function registerControllers(app:Elysia){
+  console.info("Loading Handlers...");
+  
   // root
-  app.use(rootHandler);
+  app.use(RootHandler);
 
   // auth
-  app.use(authHandler);
+  app.use(AuthHandler);
 
   // users
-  app.use(usersHandler);
+  app.use(UsersHandler);
+
+  console.info("Loading Handlers... Done!");
 }

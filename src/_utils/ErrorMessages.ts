@@ -1,7 +1,6 @@
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { CustomError } from "src/_modules/root/app.models";
 
-
   
   function handleNotFoundError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -98,8 +97,8 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseValidationError(error, set);
       case 'PrismaClientKnownRequestError':
         return handleRequestError(error, set);
-      case 'Error':
-        return handleOAuth2Error(error, set);
+      // case 'Error':
+        // return handleOAuth2Error(error, set);
     }
 
     switch (code) {

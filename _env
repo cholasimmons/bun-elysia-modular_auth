@@ -4,7 +4,7 @@ PORT=3000
 HOST=localhost
 JWSCRT=asecurepassw0rd
 JWTNAME=authJWT
-#TZ=Africa/Harare # For Lusaka too
+TZ=Africa/Harare # For Lusaka too
 
 # This was inserted by `prisma init`:
 # Environment variables declared in this file are automatically made available to Prisma.
@@ -29,3 +29,7 @@ RESEND_API_KEY=re_1234
 # OAuth2 API
 GOOGLE_CLIENT_ID=""
 GOOGLE_API_KEY=""
+
+# PGAdmin
+PGADMIN_DEFAULT_EMAIL=root@root.com
+PGADMIN_DEFAULT_PASSWORD="root"

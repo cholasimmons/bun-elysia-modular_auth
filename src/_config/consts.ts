@@ -2,7 +2,7 @@ const consts = {
     server: {
         name: 'Hello World',
         author: 'Just.Chola',
-        version: '0.2.0',
+        version: '0.3.0',
         email: 'info@simmons.studio'
     },
     api: {

@@ -21,7 +21,6 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie, authJ
 			const hostHeader = headers.get("Host");
             
 			if (!originHeader || !hostHeader || !verifyRequestOrigin(originHeader, [hostHeader])) {
-
                 return {
 					user: null,
 					session: null
@@ -74,12 +73,7 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie, authJ
     } else {
         // If an unsupported authentication method is specified, return an error response
         return { user: null, session: null };
-    }
-
-    
-    
-    
-    
+    }    
 }
 
 // Disregarded

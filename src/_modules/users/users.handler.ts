@@ -1,9 +1,15 @@
 import Elysia, { t } from "elysia";
-import { UsersController } from ".";
+import { UsersController, UsersService } from ".";
+import { AuthService } from "../auth";
 import { checkAuth, checkCookieAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
 import { UserQueriesDTO,AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, ProfileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, UpdateProfileBodyDTO } from "./users.model";
+import { swaggerDetails } from "~utils/response_helper";
 
-const usersHandler = new Elysia({
+const usersService = new UsersService();
+const authService = new AuthService();
+const users = new UsersController(usersService, authService);
+
+export const UsersHandler = new Elysia({
     prefix: '/users',
     detail: { description:'User management endpoint', tags: ['Users'] }
 })
@@ -11,12 +17,9 @@ const usersHandler = new Elysia({
     .onBeforeHandle([checkAuth])
 
     // Get all Users [STAFF]
-    .get('/', UsersController.getAllUsers, {
+    .get('/', users.getAllUsers, {
         beforeHandle: [ checkForProfile, checkIsStaff ],
-        query: t.Object({
-            isActive: t.Optional(t.BooleanString()),
-            profiles: t.Optional(t.BooleanString()),
-        }),
+        query: UserQueriesDTO,
         response: {
             200: t.Union([
                 t.Object({ data: t.Array(UserResponseDTO), message: t.Optional( t.String({ default: 'Successfully retrieved Users' }) ) }),
@@ -24,21 +27,23 @@ const usersHandler = new Elysia({
             ]),
             404: t.Object({ message: t.String({ default: 'No Users found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch Users' }) })
-        }
+        },
+        detail: swaggerDetails('Get All Users', 'Fetches all available User Accounts (toggle between active or not via isActive query)'),
     })
 
     // Get Current logged in User [SELF]
-    .get('/user', UsersController.getAccountById, {
+    .get('/user', users.getAccountById, {
         query: UserQueriesDTO,
         response: {
             200: t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not search for a User' }) })
-        }
+        },
+        detail: swaggerDetails('Get User Account', 'Fetch current User Account')
     })
 
     // Get single User by ID [STAFF]
-    .get('/user/:userId', UsersController.getAccountById, {
+    .get('/user/:userId', users.getAccountById, {
         beforeHandle: [checkIsStaff],
         params: t.Object({
             userId: t.String()
@@ -51,10 +56,23 @@ const usersHandler = new Elysia({
             ]),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch a User' }) })
-        }
+        },
+        detail: swaggerDetails('Get User Account by ID [Staff]', 'Fetch User Account by userId param (Staff only)')
     })
 
-    .get('/profile/:id', UsersController.getProfileByUserId,{
+
+    .get('/profile', users.getMyProfile,{
+        query: ProfileQueriesDTO,
+        response: {
+            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
+            404: t.Object({ message: t.String({ default:'Profile does not exist' })}),
+            406: t.Object({ message: t.String({ default:'Profile is deactivated' })}),
+            500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' })}),
+        },
+        detail: swaggerDetails('Get User Profile', 'Fetch current User Profile')
+    })
+
+    .get('/profile/:userId', users.getProfileByUserId,{
         beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
         query: ProfileQueriesDTO,
@@ -65,20 +83,11 @@ const usersHandler = new Elysia({
             ]),
             404: t.Object({ message: t.String({ default:'Profile not available' })}),
             500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' })}),
-        }
-    })
-
-    .get('/profile', UsersController.getMyProfile,{
-        query: ProfileQueriesDTO,
-        response: {
-            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
-            404: t.Object({ message: t.String({ default:'Profile does not exist' })}),
-            406: t.Object({ message: t.String({ default:'Profile is deactivated' })}),
-            500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' })}),
         },
+        detail: swaggerDetails('Get User Profile by ID [Staff]', 'Fetch User Profile by userId param (Staff only)')
     })
 
-    .get('/profiles', UsersController.getAllProfiles, {
+    .get('/profiles', users.getAllProfiles, {
         beforeHandle: [checkIsStaff],
         query: ProfileQueriesDTO,
         response: {
@@ -89,11 +98,11 @@ const usersHandler = new Elysia({
             404: t.Object({message: t.String({ default: 'No User Profiles found' }) }),
             500: t.Object({message: t.String({ default: 'Unable to fetch User Profiles' }) })
         },
-        
+        detail: swaggerDetails('Get all User Profiles [Staff]', 'Fetch User Profiles (Staff only)')
     })
 
     // Add a new Post User Account [ADMIN]
-    .get('/autousers', UsersController.getAllAutoEnrollers,{
+    .get('/autousers', users.getAllAutoEnrollers,{
         beforeHandle:[checkIsStaff],
         response: {
             200: t.Union([
@@ -101,7 +110,30 @@ const usersHandler = new Elysia({
                 t.Undefined()
             ]),
             500: t.Object({ message: t.String({ default: 'Could not fetch Auto-Users.'}) })
-        }
+        },
+        detail: swaggerDetails('Get Auto Users [Staff]', 'Fetch all Auto Users (Staff only)')
+    })
+
+    // Get Current logged in User's active status [SELF]
+    .get('/user/status', users.getAccountStatus, {
+        response: {
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Successfully retrieved User Account status' }) }),
+            404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
+            500: t.Object({ message: t.String({ default: 'Could not fetch User\'s Active status' }) })
+        },
+        detail: swaggerDetails('Get User Account Status', 'Fetch current User\'s Account status')
+    })
+
+    // Get User's active status by userId [STAFF]
+    .get('/user/status/:userId', users.getAccountStatus, {
+        // beforeHandle: [checkIsStaff],
+        params: t.Object({ userId: t.String() }),
+        response: {
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Successfully retrieved User Account status' }) }),
+            404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
+            500: t.Object({ message: t.String({ default: 'Could not fetch User\'s Active status' }) })
+        },
+        detail: swaggerDetails('Get User Account Status by ID [Staff]', 'Fetch User\'s Account status by their userId param (Staff only)')
     })
 
 
@@ -109,7 +141,7 @@ const usersHandler = new Elysia({
 
 
     // Create new User Profile [SELF]
-    .post('/profile', UsersController.createNewProfile,{
+    .post('/profile', users.createNewProfile,{
         beforeHandle: [checkEmailVerified],
         body: ProfileBodyDTO,
         response: {
@@ -122,11 +154,12 @@ const usersHandler = new Elysia({
             406: t.Object({ message: t.String({ default: 'Your submission was not valid.'}) }),
             409: t.Object({ message: t.String({ default: 'You already have a profile'}) }),
             500: t.Object({ message: t.String({ default: 'Problem processing profile submission.'}) })
-        }
+        },
+        detail: swaggerDetails('Create User Profile', 'Create a User Profile if email is verified')
     })
 
     // Add a new Post User Account [ADMIN]
-    .post('/autouser', UsersController.addNewAutoEnroller,{
+    .post('/autouser', users.addNewAutoEnroller,{
         beforeHandle:[checkIsAdmin],
         body: AutoUserBodyDTO,
         response: {
@@ -135,7 +168,8 @@ const usersHandler = new Elysia({
                 t.Undefined()
             ]),
             500: t.Object({ message: t.String({ default: 'Could not create Auto-User.'}) })
-        }
+        },
+        detail: swaggerDetails('Create Auto User [Admin]', 'Appends a new Auto Enrol User (Admin only)')
     })
 
 
@@ -143,18 +177,19 @@ const usersHandler = new Elysia({
 
 
     // Update User Profile [SELF]
-    .put('/profile', UsersController.updateUserProfile, {
+    .patch('/profile', users.updateUserProfile, {
         query: ProfileQueriesDTO,
         body: UpdateProfileBodyDTO,
         response: {
             200: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),
             404: t.Object({ message: t.String({ default: 'Could not update Profile' })}),
             500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
-        }
+        },
+        detail: swaggerDetails('Update User Profile', 'Updates the current User\' Profile')
     })
 
     // Update other User Profile [STAFF]
-    .put('/profile/:userId', UsersController.updateUserProfile, {
+    .patch('/profile/:userId', users.updateUserProfile, {
         beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
         query: ProfileQueriesDTO,
@@ -166,12 +201,27 @@ const usersHandler = new Elysia({
             ]),
             404: t.Object({ message: t.String({ default: 'Could not update Profile' })}),
             500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
-        }
+        },
+        detail: swaggerDetails('Update User Profile by ID [Staff]', 'Updates User Profile by their userId param (Staff only)')
     })
 
-    // Activate/Deactivate User Profile [STAFF]
-    .put('/deactivate/user/:userId', UsersController.deactivateUser, {
-        beforeHandle: [checkIsAdmin],
+    // Activate/Deactivate User Profile [SELF]
+    .patch('/user/deactivate', users.deactivateUser, {
+        body: t.Optional(t.Object({ isComment: t.String() })),
+        response: {
+            200: t.Union([
+                t.Object({ data: t.Optional(UserResponseDTO), message: t.String() }),
+                t.Undefined()
+            ])
+            // 404: t.Object({ message: t.String({ default: 'Profile not found' })}),
+            // 500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
+        },
+        detail: swaggerDetails('Deactivate User Account [Self]', 'Deactivates current User\'s Account')
+    })
+
+    // Activate/Deactivate User Profile [STAFF | ADMIN]
+    .patch('/user/deactivate/:userId', users.deactivateUser, {
+        beforeHandle: [checkIsAdmin, checkIsStaff],
         params: t.Object({ userId: t.String() }),
         body: t.Object({ isComment: t.String() }),
         response: {
@@ -181,7 +231,6 @@ const usersHandler = new Elysia({
             ])
             // 404: t.Object({ message: t.String({ default: 'Profile not found' })}),
             // 500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
-        }
+        },
+        detail: swaggerDetails('Deactivate User Account [Admin, Staff]', 'Deactivates User Account by their userId param (Admin, Staff)')
     })
-
-export default usersHandler;

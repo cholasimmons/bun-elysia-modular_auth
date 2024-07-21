@@ -30,6 +30,7 @@ import { Logestic } from "logestic";
 
 
 try {
+  console.log("Initializing Elysia...");
   if (import.meta.main) {
     const PORT = Bun.env.PORT || 3000;
     const app = new Elysia({
@@ -60,13 +61,13 @@ try {
           title: `${consts.server.name}`,
           version: `${consts.server.version}`,
           description: `Server API for ${consts.server.name}`
-      }
-    }}))
+      }},
+    }))
 
     // CORS security
     .use(cors({
       // origin: ['http://localhost', 'http://localhost:5173'],
-      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'DELETE'],
+      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH'],
       credentials: true,
       origin: /localhost.*/,
       // origin: (ctx) => ctx.headers.get('Origin'),
@@ -93,10 +94,10 @@ try {
           secret: Bun.env.JWSCRT!,
           exp: `${consts.auth.jwtMaxAge}d`
       })
-  )
+    )
   
     // Rate limiter for added security
-    .use(rateLimit({max: Bun.env.NODE_ENV === 'production' ? 5 : 15}))
+    .use(rateLimit({max: Bun.env.NODE_ENV === 'production' ? 8 : 15}))
 
     // CRON soul manager
     .use(cron({
@@ -104,8 +105,6 @@ try {
       pattern: Patterns.EVERY_DAY_AT_MIDNIGHT,
       // '*/1 * * * 1-6', // seconds (optional), minute, hour, day of the month, month, day of the week (RTL)
       timezone: Bun.env.TZ || 'Europe/London',
-      startAt: '',
-      stopAt: '',
       maxRuns: undefined,
       run() {
         console.log('[CRON] 24 hour mark')
@@ -121,7 +120,7 @@ try {
     // Serve HTML and other asset files
     .use(staticPlugin({
       ignorePatterns: ['*.mov'],
-      prefix: '/public',
+      prefix: '/',
       assets: 'public'
     }))
 
@@ -129,8 +128,9 @@ try {
     .use(htmx())
 
     // Get IP of client and add to context
-    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "Authentication-Method"] }))
+    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "requestIP", "Authentication-Method"] }))
 
+    
 
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
@@ -139,6 +139,8 @@ try {
     .onStop(gracefulShutdown)
     // .onRequest(requestLogger) // replaced by Logestic
     .mapResponse(customResponse);
+
+    console.log("Initializing Elysia... Done!");
 
     // ROUTES
     registerControllers(app as any);
