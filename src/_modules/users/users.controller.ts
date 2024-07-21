@@ -4,21 +4,20 @@ import { db } from "~config/prisma";
 import { AutoEnrol, Profile, User } from "@prisma/client";
 import { AuthService } from "..";
 import { lucia } from "~config/lucia";
+import { formatDate } from "~utils/utilities";
 
 
-class UsersController {
-    constructor(public usersService: UsersService, public authService: AuthService) {
-        // super('/auth');
-      }
+export class UsersController {
+    constructor(private usersService: UsersService, private authService: AuthService) {}
 
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
     async getAllUsers({ set, query: { isActive, profiles }, log }:any):Promise<{data: Partial<User>[], message: string}|{message: string}> {
-        log.error(isActive, "IsActive");
-        log.info(set.status, "Status");
+        log.error("isActive: ", isActive);
+        log.info("Status: ", set.status);
         try {
-            const users = await usersService.getAll(isActive, profiles);
+            const users = await this.usersService.getAll(isActive, profiles);
 
             // if(!users){
             //     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -44,7 +43,7 @@ class UsersController {
                 return { message: 'No User details found' };
             }
 
-            const u: Partial<User> = await usersService.getUser(user_id, {profile})
+            const u: Partial<User> = await this.usersService.getUser(user_id, {profile})
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: u, message: 'Successfully retrieved User' };
@@ -53,6 +52,35 @@ class UsersController {
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
             return { message: 'Could not fetch a User' }
+        }
+    }
+
+    // Retrieve User's Account status [SELF | STAFF]
+    async getAccountStatus({ set, user, params:{ userId } }:any) {        
+        const user_id = userId ?? user.id;        
+
+        try {
+            if(!user_id){
+                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                return { message: 'No User ID found' };
+            }
+
+            const u: Partial<User> = await this.usersService.getUser(user_id);
+
+            const isActive = u.isActive;
+
+            if(isActive == null || isActive == undefined){
+                set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+                return { message: 'Active status unknown' }
+            }
+
+            set.status = HttpStatusEnum.HTTP_200_OK;
+            return { data: isActive.toString(), message: 'Successfully retrieved User Account status' };
+        } catch (err) {
+            console.error(err);
+
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: 'Could not fetch User\'s Active status' }
         }
     }
 
@@ -237,7 +265,7 @@ class UsersController {
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
             if(body.photo){
                 try{
-                    // uploadedImage = await usersService.uploadPhoto(body.photo) 
+                    // uploadedImage = await this.usersService.uploadPhoto(body.photo) 
                 } catch(err) {
                     console.error(err);
                 }
@@ -265,7 +293,7 @@ class UsersController {
             //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             // }
 
-            const newProfile: any = await usersService.createUserProfile(ammendedProfile)
+            const newProfile: any = await this.usersService.createUserProfile(ammendedProfile)
             
             if(!newProfile){
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -283,7 +311,7 @@ class UsersController {
                 profileId: newProfile.id ?? null
             });
 
-            const sess = await authService.createLuciaSession(user.id, headers, newProfile.id);
+            const sess = await this.authService.createLuciaSession(user.id, headers, newProfile.id);
             const sessionCookie = lucia.createSessionCookie(sess.id);
             await lucia.invalidateSession(lucia_auth.value);
             
@@ -356,7 +384,7 @@ class UsersController {
             if(body.photo){
                 try {
                     // File service
-                    // imageId = await usersService.uploadPhoto(body.photo)
+                    // imageId = await this.usersService.uploadPhoto(body.photo)
                 } catch(err) {
                     console.error(err);
                 }
@@ -394,11 +422,15 @@ class UsersController {
     }
 
     // Deactivates a User account [ADMIN]
-    async deactivateUser ({ set, params:{ userId }, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
+    async deactivateUser ({ user, set, params:{ userId }, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
+        const user_id = userId ?? user.id
+        const now = new Date();
+        const theComment = isComment ?? `Deactivated on ${formatDate(now)}`;
+
         try {
             const user = await db.user.update({
-                where: { id: userId },
-                data: { isActive: false, isComment: isComment },
+                where: { id: user_id },
+                data: { isActive: false, isComment: theComment },
                 select: {
                     id: true,
                     firstname: true,
@@ -425,7 +457,3 @@ class UsersController {
         }
     }
 }
-
-const usersService = new UsersService();
-const authService = new AuthService();
-export default new UsersController(usersService, authService);

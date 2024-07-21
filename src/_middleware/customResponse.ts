@@ -13,67 +13,47 @@ interface nResponse {
     message: string|null;
 }
 
-const customResponse = ({ response, set }:any): any => {
+const customResponse = ({ response, set }:{ response: any, set: any }): any => {
+    if (typeof set !== 'object' || set === null) {
+        throw new Error('Invalid set object');
+    }
     
-    // Override the response
+    // Global vars to capture response data
     let msg: string|null = null;
     let dta: any|null = null;
 
     function sanitizeResponse(){
-        // Capture "message" object from response, for redirection
-        if(!!response?.message){
-            msg = response?.message ?? null;
-            delete response?.message
-        }
-
-        // Capture data object to be reproduced in local data object
-        if(!!response?.data){
-            dta = response?.data ?? null;
-            delete response?.data
-        }
+        // Capture "message"  and "data" data from response
+        msg = response?.message ?? null;
+        dta = response?.data ?? null;
+        delete response?.message;
+        delete response?.data;
     }
     
-    if(set.status !== 401 && set.status !== 403){
+    // if(set.status !== 401 && set.status !== 403){
         sanitizeResponse();
-    }
+    // }
 
     // Check if response is an empty object
-    function isEmptyObject(response: Response) {
+    const isEmptyObject = (response: Response): boolean => 
         // Check if the object is not null and is of type 'object'
-        if (response !== null && ( typeof response === 'object' ) ) {
-          // Check if the object has no own properties
-          return Object.keys(response).length === 0;
-        }
-        // If the object is not an object or is null, it's not an empty object
-        return false;
-    }
+        response !== null && typeof response === 'object' && Object.keys(response).length === 0;
+
 
     // Check if response is a served asset (file for now)
-    function isResponseFile(r: any){
-        if(r?.name){
-            return true;
-        }
-        return false;
-    }
+    const isResponseFile = (r: any) : boolean => !!r?.name;
 
-    const fixedResponse: {data: any, success: boolean, code: number, message: string|null, error?: null} = {
+    const responseObject = {
         data: dta,
-        success: (set.status === 200 || set.status === 201 || set.status === 202),
+        success: [200, 201, 202].includes(set.status),
         code: set.status,
-        message: msg,
+        message: msg ?? (response != null ? 
+            (response instanceof Object ? null : String(response)) 
+            : 'No response'),
         error: null
     };
-
-    const noResponse: {data: any, code: number, message: string|null, error?:null} = {
-        data: dta,
-        code: set.status,
-        message: msg ?? response.toString(),
-        error: null
-    }
-
-    // console.debug("response: ",response);
-    
-    return isResponseFile(response) ? response : (response instanceof Object) ? fixedResponse : noResponse;
+ 
+    return isResponseFile(response) ? response : responseObject;
 };
 
 export default customResponse;

@@ -23,11 +23,10 @@ main().then(() => {
     
 }).catch((e) => {
     console.error('❌ Error seeding:', e);
-    process.exit(1)
+    // process.exit(1)
 }).finally(async ()=>{
     // Close db connection
     await db.$disconnect();
 
-    console.log("Seed complete!");
-    
+    console.log("Seed function ended.");
 })

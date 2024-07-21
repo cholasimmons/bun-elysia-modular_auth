@@ -11,12 +11,11 @@ import consts from "~config/consts";
 import { OAuth2Providers } from "./auth.models";
 
 
-const url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;
-class AuthController {
+export class AuthController {
     routes = [];
-  
-    constructor(public authService: AuthService) {
-      // super('/auth');
+    url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;
+
+    constructor(private authService: AuthService) {
     }
 
     root({ cookie }: any):string{
@@ -42,7 +41,7 @@ class AuthController {
                 return { success: false, message: "Authentication method not specified", data: null };
             }
 
-            authService.validateCredentials(email.toLowerCase(), password)
+            this.authService.validateCredentials(email.toLowerCase(), password)
 
             // find user by Key, and validate password
             const userExists = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
@@ -99,7 +98,7 @@ class AuthController {
             set.status = HttpStatusEnum.HTTP_200_OK;
             // Causes issues in Insomnia as it expects both to be available
             // if(authMethod === "Cookie"){
-            //     const {id} = await authService.createLuciaSession(userExists.id, headers, rememberme);
+            //     const {id} = await this.authService.createLuciaSession(userExists.id, headers, rememberme);
             //     const sessionCookie = await lucia.createSessionCookie(id);
             //     sessionCookie.value = accessToken;
             //     set.headers["Set-Cookie"] = sessionCookie.serialize();
@@ -107,7 +106,7 @@ class AuthController {
             //     set.headers["Authorization"] = `Bearer ${accessToken}`;
             // }
 
-            const {id} = await authService.createLuciaSession(userExists.id, headers, rememberme);
+            const {id} = await this.authService.createLuciaSession(userExists.id, headers, rememberme);
             const sessionCookie = lucia.createSessionCookie(id);
             // sessionCookie.value = accessToken;
             set.headers["Authorization"] = `Bearer ${accessToken}`;
@@ -141,7 +140,7 @@ class AuthController {
         
         // Create User 
         try {
-            authService.validateCredentials(email, password, confirmPassword);
+            this.authService.validateCredentials(email, password, confirmPassword);
 
             const userExists = await db.user.findUnique({ where: { email: email } });
 
@@ -150,7 +149,7 @@ class AuthController {
                 return { message: 'That email address is taken' };
             }
 
-            const autoUser = await authService.validateAutoEnrollment(email);
+            const autoUser = await this.authService.validateAutoEnrollment(email);
 
             const hashedPassword = await Bun.password.hash(password, {
                 algorithm: 'argon2id',
@@ -173,17 +172,17 @@ class AuthController {
 
             console.log("Created User ", result.firstname, autoUser ? '. Auto enrolled user: '+autoUser : 'No auto-enrol');
 
-            // const verificationCode = await authService.generateEmailVerificationCode(result.id, email);
-	        // await authService.sendEmailVerificationCode(email, verificationCode);
+            // const verificationCode = await this.authService.generateEmailVerificationCode(result.id, email);
+	        // await this.authService.sendEmailVerificationCode(email, verificationCode);
 
             if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
                 await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
             }
 
-            const session = await authService.createLuciaSession(result.id, headers);
+            const session = await this.authService.createLuciaSession(result.id, headers);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
-            const sanitizedUser = authService.sanitizeUserObject(result);
+            const sanitizedUser = this.authService.sanitizeUserObject(result);
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             set.headers["Set-Cookie"] = sessionCookie.serialize();
@@ -272,7 +271,7 @@ class AuthController {
                 return { message: 'That email address is unavailable' };
             }
 
-            const validCode = await authService.verifyVerificationCode(user, code);
+            const validCode = await this.authService.verifyVerificationCode(user, code);
             if (!validCode) {
                 set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
                 return { message: 'Verification not successful' }
@@ -281,7 +280,7 @@ class AuthController {
             await lucia.invalidateUserSessions(user.id);
             await db.user.update({ where: { id: user.id }, data: { emailVerified: true }})
 
-            const session = await authService.createLuciaSession(user.id, headers);
+            const session = await this.authService.createLuciaSession(user.id, headers);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
             set.status = HttpStatusEnum.HTTP_302_FOUND;
@@ -305,8 +304,8 @@ class AuthController {
         }
 
         try {
-            const verificationCode = await authService.generateEmailVerificationCode(user.id, user.email);
-            await authService.sendEmailVerificationCode(user.email, verificationCode);
+            const verificationCode = await this.authService.generateEmailVerificationCode(user.id, user.email);
+            await this.authService.sendEmailVerificationCode(user.email, verificationCode);
             
             set.status = 200;
             return { message: `Verification code sent to ${user.email}` }
@@ -329,10 +328,10 @@ class AuthController {
                 return { message: 'An account with that email does not exist' }
             }
 
-            const verificationToken = await authService.createPasswordResetToken(user.id);
-            const verificationLink =  `${url}/auth/reset-password/${verificationToken}`;
+            const verificationToken = await this.authService.createPasswordResetToken(user.id);
+            const verificationLink =  `${this.url}/auth/reset-password/${verificationToken}`;
 
-            authService.sendPasswordResetToken(email, verificationLink);
+            this.authService.sendPasswordResetToken(email, verificationLink);
 
             set.status = 200;
             return { message: `A password reset link has been sent to your email.\n Expires in 30 minutes` };
@@ -367,7 +366,7 @@ class AuthController {
         //     hashedPassword: hashedPassword
         // } });
 
-        // const session = await authService.createLuciaSession(_token!.userId, headers);
+        // const session = await this.authService.createLuciaSession(_token!.userId, headers);
         // const sessionCookie = lucia.createSessionCookie(session.id);
 
         // set.status = HttpStatusEnum.HTTP_302_FOUND;
@@ -388,10 +387,10 @@ class AuthController {
                 return { message: `Invalid account. ${!user?.emailVerified ? 'Is your email verified?' : 'No User detected'}` };
             }
         
-            const verificationToken = await authService.createPasswordResetToken(user.id);
-            const verificationLink =  `${url}/auth/reset-password/${verificationToken}`; // TYhis should be a link to the app's password reset page!
+            const verificationToken = await this.authService.createPasswordResetToken(user.id);
+            const verificationLink =  `${this.url}/auth/reset-password/${verificationToken}`; // TYhis should be a link to the app's password reset page!
         
-            await authService.sendPasswordResetToken(user.email, verificationLink);
+            await this.authService.sendPasswordResetToken(user.email, verificationLink);
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             set.headers["Referrer-Policy"] = "no-referrer"; // might need to axe this
@@ -404,7 +403,7 @@ class AuthController {
         //     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
         //     return { message: 'Unacceptable password' };
         // }
-        authService.validateCredentials('info@simmons.studio', password, confirmPassword)
+        this.authService.validateCredentials('info@simmons.studio', password, confirmPassword)
 
         const verificationToken = token;
 
@@ -427,7 +426,7 @@ class AuthController {
         } });
 
         await lucia.invalidateUserSessions(_token!.userId);
-        const session = await authService.createLuciaSession(_token!.userId, headers);
+        const session = await this.authService.createLuciaSession(_token!.userId, headers);
         const sessionCookie = lucia.createSessionCookie(session.id);
 
         set.status = HttpStatusEnum.HTTP_200_OK;
@@ -454,7 +453,7 @@ class AuthController {
                 return { message: 'Your passwords do not match' };
             }
 
-            authService.validateCredentials(user.email, newPassword, confirmPassword);
+            this.authService.validateCredentials(user.email, newPassword, confirmPassword);
 
             const newHashedPassword = await Bun.password.hash(newPassword, {
                 algorithm: 'argon2id',
@@ -549,7 +548,7 @@ class AuthController {
         //     });
 
         //     if (existingUser) {
-        //         const session = await authService.createLuciaSession(existingUser.id, headers);
+        //         const session = await this.authService.createLuciaSession(existingUser.id, headers);
         //         const sessionCookie = lucia.createSessionCookie(session.id);
         //         lucia_session.value = sessionCookie.value;
         //         lucia_session.set(sessionCookie.attributes);
@@ -573,7 +572,7 @@ class AuthController {
         //     } });
         //     // , username: googleUserResult.login
 
-        //     const session = await authService.createLuciaSession(userId, request.headers);
+        //     const session = await this.authService.createLuciaSession(userId, request.headers);
         //     const sessionCookie = lucia.createSessionCookie(session.id).serialize();
 
         //     set.headers["Set-Cookie"] = sessionCookie;
@@ -591,6 +590,3 @@ class AuthController {
         // }
     }
 }
-
-const authService = new AuthService();
-export default new AuthController(authService);

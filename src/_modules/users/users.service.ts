@@ -3,11 +3,11 @@ import { Prisma, Profile, Role, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
-// import { minioClient } from "~config/minioClient";
-// import { FilesService } from "~modules/files";
 
-const resend = new Resend(Bun.env.RESEND_API_KEY);
-export default class UsersService {
+
+
+export class UsersService {
+    private resend = new Resend(Bun.env.RESEND_API_KEY);
 
     async getAll(isActive?: boolean, profiles?: boolean){
         try {
@@ -36,7 +36,7 @@ export default class UsersService {
     }
 
     // Returns a unique User from the DB with particular ID string
-    async getUser(userId: string, opts?:{ profile?:boolean }): Promise<Partial<User>> {
+    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<Partial<User>> {
         try {
             const user: Partial<User>|null = await db.user.findUnique({
                 where: { id: userId },
@@ -207,12 +207,12 @@ export default class UsersService {
     //     }
     // }
 
-    static async sendEmailToUser(userProfile:Partial<Profile>, message:string, subject?:string){
+    async sendEmailToUser(userProfile:Partial<Profile>, message:string, subject?:string){
         console.log(`Sending message to ${userProfile.firstname}`);
         // TODO: Implement timeout to limit the resends
 
         try {
-            await resend.emails.send({
+            await this.resend.emails.send({
                 from: consts.server.email, // 'onboarding@resend.dev',
                 to: userProfile?.email!,
                 subject: subject ?? `System message | ${consts.server.name}`,

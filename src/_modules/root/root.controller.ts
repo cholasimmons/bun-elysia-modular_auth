@@ -1,7 +1,7 @@
 import { HttpStatusEnum } from 'elysia-http-status-code/status';
 import consts from '~config/consts';
 
-class RootController {
+export class RootController {
   constructor(){}
 
   async helloWorld({set, user, session, request:{ headers }}: any) {
@@ -22,12 +22,7 @@ class RootController {
     }
   }
 
-  async helloTime({ user, session, params, store:{timezone} }: any) {
-
-    console.log("User: ",user);
-    console.log("Session: ",session);
-    console.log("ProfileID: ",user?.profileId ?? null);
-
+  async helloTime({ params, store:{timezone} }: any) {
     const currentHour = new Date().getHours();
 
     function getGreeting(): string {
@@ -73,6 +68,17 @@ class RootController {
       return { message: `Error occurred` }
     }
   }
-}
+  
+  async health({store}:any){
+    const spec = {
+      "Server Name": consts.server.name,
+      "Version": consts.server.version,
+      "Maintenance Mode": store.maintenanceMode ?? 'Unavailable',
+      "Timezone": store.timezone,
+      "Creator": consts.server.author
+    };
 
-export default new RootController();
+    return { data: spec, message: `All Systems GO!` }
+  }
+
+}

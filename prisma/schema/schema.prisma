@@ -1,44 +1,34 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
-  binaryTargets = ["native"] // "debian-openssl-1.1.x"
-  previewFeatures = ["prismaSchemaFolder", "multiSchema"]
+  provider        = "prisma-client-js"
+  binaryTargets = ["native"]
+  previewFeatures = ["multiSchema", "prismaSchemaFolder"]
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["users", "logs"]
+  schemas  = ["logs", "users"]
 }
 
-
-// AUTH
-
 model User {
-  id                String        @id @unique
-  firstname         String
-  lastname          String
-  google_id         String?        @unique
-  apple_id          String?        @unique
-  microsoft_id      String?        @unique
-  facebook_id       String?        @unique
-  email             String         @unique
-  emailVerified     Boolean        @default(false) @map("email_verified")
-  phone             String?        @unique
-  roles             Role[]         @default([GUEST])
-  profileId         String?       @unique
-  profile           Profile?      @relation("user_profile")
-  authSession       Session[]
-  
-  hashedPassword    String        @map("hashed_password") 
-
-  isActive          Boolean       @default(true) @map("is_active")
-  isComment         String?       @map("comment") // Explain why Profile is inactive
-  createdAt         DateTime      @default(now()) @map("created_at")
+  id             String    @id @unique
+  firstname      String
+  lastname       String
+  google_id      String?   @unique
+  apple_id       String?   @unique
+  microsoft_id   String?   @unique
+  facebook_id    String?   @unique
+  email          String    @unique
+  emailVerified  Boolean   @default(false) @map("email_verified")
+  phone          String?   @unique
+  roles          Role[]    @default([GUEST])
+  profileId      String?   @unique
+  hashedPassword String    @map("hashed_password")
+  isActive       Boolean   @default(true) @map("is_active")
+  isComment      String?   @map("comment")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  profile        Profile?  @relation("user_profile")
+  authSession    Session[]
 
   @@index([id, email, createdAt(sort: Desc)])
   @@map("users")
@@ -46,29 +36,29 @@ model User {
 }
 
 model Session {
-  id              String      @id @unique
-  userId          String      @map("user_id")
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fresh           Boolean     @default(false)
-  expiresAt       DateTime    @map("expires_at")
-  activeExpires   BigInt      @map("active_expires")
-  host            String
-  userAgentHash   String?     @map("user_agent_hash")
-  os              String?
-  ipCountry       String?     @map("ip_country")
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz()
-  
+  id            String   @id @unique
+  userId        String   @map("user_id")
+  fresh         Boolean  @default(false)
+  expiresAt     DateTime @map("expires_at")
+  activeExpires BigInt   @map("active_expires")
+  host          String
+  userAgentHash String?  @map("user_agent_hash")
+  os            String?
+  ipCountry     String?  @map("ip_country")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId(sort: Desc)])
   @@map("sessions")
   @@schema("users")
 }
 
 model EmailVerificationCode {
-  id            Int           @id @default(autoincrement()) @unique
-  code          String
-  userId        String        @unique @map("user_id")
-  email         String
-  expiresAt     DateTime      @map("expires_at")
+  id        Int      @id @unique @default(autoincrement())
+  code      String
+  userId    String   @unique @map("user_id")
+  email     String
+  expiresAt DateTime @map("expires_at")
 
   @@index([id, code])
   @@map("email_verification_codes")
@@ -76,67 +66,60 @@ model EmailVerificationCode {
 }
 
 model PasswordResetToken {
-  id            Int           @id @default(autoincrement()) @unique
-  tokenHash     String        @unique @map("token_hash")
-  userId        String        @map("user_id")
-  expiresAt     DateTime      @map("expires_at")
+  id        Int      @id @unique @default(autoincrement())
+  tokenHash String   @unique @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
 
   @@index([id])
   @@map("password_reset_tokens")
   @@schema("users")
 }
 
-
 model Profile {
-  id                String        @id @default(uuid()) @unique
-  bio               String?
-  userId            String?        @unique
-  user              User?          @relation("user_profile", fields: [userId], references: [id], onDelete: SetNull)
-  documentId        String        @map("document_id") // NRC / Passport ID  
-  documentType      DocumentType  @map("document_type")
-  photoId           String?
-  gender            Gender        @default(OTHER)
-
-  firstname         String
-  lastname          String
-  email             String         @unique
-  phone             String         @unique
-
-  supportLevel      Int           @default(0) @db.SmallInt
-
-  isActive          Boolean       @default(true) @map("is_active")
-  isComment         String?       @map("comment") // Explain why Profile is inactive
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id           String       @id @unique @default(uuid())
+  bio          String?
+  userId       String?      @unique
+  documentId   String       @map("document_id")
+  documentType DocumentType @map("document_type")
+  photoId      String?
+  gender       Gender       @default(OTHER)
+  firstname    String
+  lastname     String
+  email        String       @unique
+  phone        String       @unique
+  supportLevel Int          @default(0) @db.SmallInt
+  isActive     Boolean      @default(true) @map("is_active")
+  isComment    String?      @map("comment")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  user         User?        @relation("user_profile", fields: [userId], references: [id])
 
   @@map("profiles")
   @@schema("users")
 }
 
 model AutoEnrol {
-  id                Int           @id @default(autoincrement())
-  names             String?
-  email             String        @unique
-  phone             String?       @unique
-  roles             Role[]
-  supportLevel      Int           @default(0) @db.SmallInt
-
-  isActive          Boolean       @default(true) @map("is_active")
-  isComment         String?       @map("comment") // Explain why Profile is inactive
-  createdAt         DateTime      @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  names        String?
+  email        String   @unique
+  phone        String?  @unique
+  roles        Role[]
+  supportLevel Int      @default(0) @db.SmallInt
+  isActive     Boolean  @default(true) @map("is_active")
+  isComment    String?  @map("comment")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("auto_enrols")
   @@schema("users")
 }
 
-
-// ENUMS
-
 enum Role {
-  GUEST // Default User
-  SUPPORT // system customer service
-  SUPERVISOR // overall manager
-  ADMIN // system master
+  GUEST
+  SUPPORT
+  SUPERVISOR
+  ADMIN
+
   @@schema("users")
 }
 
@@ -144,11 +127,13 @@ enum Gender {
   MALE
   FEMALE
   OTHER
+
   @@schema("users")
 }
 
 enum DocumentType {
   NRC
   PASSPORT
+
   @@schema("users")
 }

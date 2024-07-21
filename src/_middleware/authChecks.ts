@@ -56,7 +56,7 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
   } else {
       // If an unsupported authentication method is specified, return an error response
       set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-      return { success: false, message: `${authMethod} - unsupported authentication method`, data: null };
+      return { success: false, message: `Unsupported authentication method. ${authMethod}`, data: null };
   }
 }
 

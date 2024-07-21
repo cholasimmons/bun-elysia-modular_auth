@@ -1,6 +1,31 @@
 # Changelog
 
 
+## [0.3.0] - 21-07-2024
+
+### Added
+
+- `swaggerDetails()` utility function to make it easier to create "summary" and "description" entries for swagger
+
+### Changed
+
+- Dependency Injection method changed to allow for a more acceptable standard
+- Dockerfile now uses `:slim` tag for latest slim version of Bun (lighter image)
+- Optimized customResponse middleware to also check for undefined responses
+
+### Updated
+
+- Bun, v1.1.20
+- Elysia, 1.1.2 (1.1.3 problematic)
+- Swagger, 1.0.5 (1.1.0 problematic)
+- Prisma 5.15.1 (5.17.0 problematic)
+- `docker-compose.yml` and `Dockerfile` improved
+
+### Removed
+
+- OAuth2 implementation from AuthHandler, caused Docker build to crash (will be re-implemented in future)
+
+
 ## [0.2.4] - 06-07-2024
 
 ### Added

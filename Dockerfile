@@ -1,19 +1,22 @@
-# use the official Bun image
-# see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:1.1.18-slim as base
+# see all official Bun versions at https://hub.docker.com/r/oven/bun/tags
+FROM oven/bun:slim AS base
+
+# Create group and user
+RUN addgroup --system --gid 1001 bunjs
+RUN adduser --system --uid 1001 elysiajs
+
+# Set up application
 WORKDIR /usr/src/app
 
-
-# install dependencies into temp directory
-# this will cache them and speed up future builds
+# install dependencies into temp directory (cache and speed for future builds)
 FROM base AS install
 RUN mkdir -p /temp/dev
 COPY package.json bun.lockb /temp/dev/
 COPY prisma /temp/dev/prisma
+COPY tsconfig.json /temp/dev/
+ENV NODE_ENV=development
 RUN cd /temp/dev && bun install --frozen-lockfile
 RUN cd /temp/dev && bunx prisma generate
-#RUN cd /temp/dev && bunx prisma db seed
-
 
 # install with --production (exclude devDependencies)
 # RUN mkdir -p /temp/prod
@@ -25,20 +28,19 @@ RUN cd /temp/dev && bunx prisma generate
 # then copy all (non-ignored) project files into the image
 FROM base AS prerelease
 COPY --from=install /temp/dev/node_modules node_modules
-#COPY --from=install /temp/dev/node_modules/@prisma node_modules/@prisma
-#COPY --from=install /temp/dev/node_modules/.prisma node_modules/.prisma
 COPY --from=install /temp/dev/package.json .
 COPY --from=install /temp/dev/prisma prisma
+COPY --from=install /temp/dev/tsconfig.json .
 COPY public public
 COPY src src
-COPY tsconfig.json .
-
 
 # [optional] tests & build
 # ENV NODE_ENV=production
 # RUN bun test
 # RUN bun run build
 
+# Set ownership of the application files
+RUN chown -R elysiajs:bunjs /usr/src/app
 
 # copy production dependencies and source code into final image
 # FROM base AS release
@@ -47,11 +49,12 @@ COPY tsconfig.json .
 # COPY --from=prerelease /usr/src/app/ .
 # COPY --from=prerelease /usr/src/app/package.json .
 
-# run the app
-USER bun
+# Switch to non-root user for added security
+USER elysiajs
 EXPOSE 3000/tcp
 
-ENTRYPOINT [ "bun", "dev" ]
+# run the app
+CMD [ "bun", "dev" ]
 
 # execute the binary!
 # CMD ["/usr/src/app/app"]

@@ -9,17 +9,21 @@ import { Resend } from "resend";
 import consts from "~config/consts";
 
 
-const today = new Date();
-// today.setHours(0, 0, 0, 0); // Set time to midnight to represent the start of today
-
-const oneDayAgo = new Date();
-oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // const nextYear = today.getUTCFullYear() + 1;
 // today.setFullYear(nextYear)
 
-export default class AuthService {
+export class AuthService {
+    private today: Date;
+    // today.setHours(0, 0, 0, 0); // Set time to midnight to represent the start of today
+    private oneDayAgo: Date;
+    private resend = new Resend(Bun.env.RESEND_API_KEY);
+
+    constructor(){
+        this.today = this.oneDayAgo = new Date();
+        this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
+        this.resend = new Resend(Bun.env.RESEND_API_KEY ?? '1234');
+    }
+
 
     // Clean full User object, removing sessions, password, OAuth IDs and profile
     async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
@@ -108,7 +112,7 @@ export default class AuthService {
         // TODO: Implement timeout to limit the resends
 
         try {
-            await resend.emails.send({
+            await this.resend.emails.send({
                 from: 'onboarding@resend.dev',
                 to: email,
                 subject: 'Your Verification Code',
@@ -166,7 +170,7 @@ export default class AuthService {
         console.debug(`Password reset token to be sent to ${email}: ${verificationLink}`);
 
         try {
-            await resend.emails.send({
+            await this.resend.emails.send({
                 from: 'onboarding@resend.dev',
                 to: email,
                 subject: 'Hello User',
@@ -202,9 +206,9 @@ export default class AuthService {
         }
     }
 
-    static async clearExpiredEmailVerificationCodes(){
+    async clearExpiredEmailVerificationCodes(){
         return db.emailVerificationCode.deleteMany({
-            where: { expiresAt: { lte: oneDayAgo } }
+            where: { expiresAt: { lte: this.oneDayAgo } }
         });
     }
 }
