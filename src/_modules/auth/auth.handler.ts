@@ -35,12 +35,39 @@ export const AuthHandler = new Elysia({
         detail: swaggerDetails('Sign In [GET]', 'Advises Developer to use POST method'),
     })
 
+    .get('/register', authController.signupForm, {
+        detail: swaggerDetails('Create Account [GET]', 'Advises Developer to use POST method'),
+    })
+
     .get('/login/google', authController.getGoogle, {
+        response:{
+            302: t.Object({ message: t.String({ default: 'Connecting to OAuth2Provider'}) }),
+            500: t.Object({ message: t.String({ default: 'Unable to process OAuth login'}) })
+        },
         detail: swaggerDetails('Sign In | Google', 'Logs you in to your Google Account'),
     })
 
     .get('/login/google/callback', authController.getGoogleCallback, {
         detail: swaggerDetails('Callback | Google', 'Endpoint for successful Google login'),
+    })
+
+    .get('/login/github', authController.getGithub, {
+        response:{
+            302: t.Object({ message: t.String({ default: 'Connecting to OAuth2Provider'}) }),
+            500: t.Object({ message: t.String({ default: 'Unable to process OAuth login'}) })
+        },
+        detail: swaggerDetails('Sign In | Github', 'Logs you in to your Github Account'),
+    })
+
+    .get('/login/github/callback', authController.getGithubCallback, {
+        query: t.Object({ code: t.String(), state: t.String() }),
+        response: {
+            302: t.Object({ message: t.String({default: 'Logged in using Github'}), data: t.Object({}) }),
+            400: t.Object({ message: t.String({default: 'Invalid callback state'}) }),
+            403: t.Object({ message: t.String({default: 'No public email available'}) }),
+            500: t.Object({ message: t.String({default: 'Unable to validate OAuth callback'}) })
+        },
+        detail: swaggerDetails('Callback | Github', 'Endpoint for successful Github login'),
     })
 
     .get('/reset-password/:token', authController.getResetPassToken, {

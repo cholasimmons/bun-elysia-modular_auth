@@ -17,14 +17,14 @@ import { htmx } from "elysia-htmx";
 
 // Middleware
 import { bootLogger, gracefulShutdown, requestLogger } from "~utils/systemLogger";
-import { ErrorMessages } from "~utils/errorMessages";
+import { ErrorMessages } from "~middleware/errorMessages";
 import { checkMaintenanceMode } from "~middleware/lifecycleHandlers";
 import customResponse from "~middleware/customResponse";
 import { sessionDerive } from "~middleware/session.derive";
 
 // Route Handler
 import { registerControllers } from "./server";
-import { logger } from "@bogeychan/elysia-logger";
+// import { logger } from "@bogeychan/elysia-logger";
 import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
 
@@ -79,6 +79,7 @@ try {
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
+          "script-src-elem": ["https://cdn.jsdelivr.net/"],
           "script-src": ["'self'", "https://cdn.jsdelivr.net/"],
         },
       }
@@ -120,7 +121,7 @@ try {
     // Serve HTML and other asset files
     .use(staticPlugin({
       ignorePatterns: ['*.mov'],
-      prefix: '/',
+      prefix: '/public',
       assets: 'public'
     }))
 
@@ -135,10 +136,9 @@ try {
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
     .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
+    .mapResponse(customResponse)
     .onError(({ code, error, set }:any) => ErrorMessages(code, error, set)) // General Error catching system
-    .onStop(gracefulShutdown)
-    // .onRequest(requestLogger) // replaced by Logestic
-    .mapResponse(customResponse);
+    .onStop(gracefulShutdown);
 
     console.log("Initializing Elysia... Done!");
 

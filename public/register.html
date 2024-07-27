@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <title>Login Form</title>
+        <title>Sign Up Form</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400&display=swap" rel="stylesheet">
@@ -15,33 +15,37 @@
     <body>
         <div class="container mt-5">
             <div class="row justify-content-center">
-                <h3 class="text-center">Welcome Back</h3>
+                <h3 class="text-center">Create an Account</h3>
                     <div class="col-md-8">
-                        <form hx-post="/v1/auth/login" hx-target="#login-response" hx-swap="outerHTML" class="card p-4">
+                        <form hx-post="/v1/auth/register" hx-target="#register-response" hx-swap="outerHTML" class="card p-4">
                         <div class="mb-3">
-                            <input type="text" id="email" name="email" required autocomplete="email" class="form-control" placeholder="Email Address">
+                            <input type="email" id="email" name="email" required autocomplete="email" class="form-control" placeholder="Email">
                         </div>
 
                         <div class="mb-3">
-                            <input type="password" id="password" name="password" required autocomplete="current-password" class="form-control" placeholder="Password">
+                            <input type="password" id="password" name="password" required autocomplete="new-password" class="form-control" placeholder="Password">
+                        </div>
+
+                        <div class="mb-3">
+                            <input type="confirm-password" id="confirm-password" name="confirm-password" required autocomplete="new-password" class="form-control" placeholder="Password">
                         </div>
 
                         <hr>
 
                         <div class="d-flex justify-content-center mb-3">
                             <div class="d-flex justify-content-center col-md-6 text-center gap-4">
-                                <a href="/v1/auth/login/github"><img src="/v1/public/icons/github.webp" target="github" alt="Sign in with GitHub" width="48" title="Login with Github"></a>
-                                <a href="/v1/auth/login/google" aria-disabled="true" disabled><img src="/v1/public/icons/google.webp" target="google" alt="Sign in with Google" width="48" title="Login with Google"></a>
+                                <a href="/v1/auth/register/github"><img src="/v1/public/icons/github.webp" target="github" alt="Sign up with GitHub" width="48" title="Sign up with Github"></a>
+                                <a href="/v1/auth/register/google" aria-disabled="true" disabled><img src="/v1/public/icons/google.webp" target="google" alt="Sign up with Google" width="48" title="Sign up with Google"></a>
                             </div>
                         </div>
 
                         <hr>
 
                         <div class="d-flex justify-content-center mb-3 text-center">
-                            <a href="/v1/auth/register" class="text-decoration-none font-weight-bold">Create a New Account</a>
+                            <a href="/v1/auth/login" class="text-decoration-none font-weight-bold">Already a Member?</a>
                         </div>
 
-                        <button type="submit" class="btn btn-dark">Log In</button>
+                        <button type="submit" class="btn btn-dark font-weight-bold">Sign up</button>
                     </form>
                     <div id="login-response"></div>
                 </div>

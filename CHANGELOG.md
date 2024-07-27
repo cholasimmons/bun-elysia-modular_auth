@@ -1,6 +1,33 @@
 # Changelog
 
 
+## [0.4.0] - 31-07-2024
+
+### Added
+
+- OAuth2 provider `Github` and `Google` for testing purposes. endpoint `/v1/auth/login/github` and `google` respectively, (requires OAuth2 secrets in .env file)
+- Arctic and Oslo packages added to assist with OAuth login by Lucia Auth v3
+- New database table `OAuth_Account` for multiple OAuth login
+- User database object now takes `username` string input which is always the user's email (for now)
+- Registration screen for web browser (placeholder)
+
+### Changed
+
+- mapResponse life-cycle now handles images, html, css & js files correctly
+- Changes to `schema.prisma` and `auth/login` to accomodate the OAuth2 providers
+- Welcome screen and Login screen for browsers beautified
+- testing Buffer functions over btoa() for base64 encoding/decoding
+
+### Fixed
+
+- AuthService instantiation no longer throwing errors inside of parent Controllers. (changed controller functions to arrow functions)
+
+### Updated
+
+- Elysia, 1.1.4
+
+
+
 ## [0.3.0] - 21-07-2024
 
 ### Added

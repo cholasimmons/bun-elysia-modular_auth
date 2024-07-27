@@ -65,14 +65,32 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie, authJ
             return { user: null, session: null };
         }
     
-        const user = await authJWT.verify(token);
-        if (!user.id) {
+        const sessionId = lucia.readBearerToken(token ?? "");
+        if(!sessionId){
             return { user: null, session: null };
         }
-        return { user: user, session: null };
+
+        // const user = await authJWT.verify(token);
+        // if (!user.id) {
+        //     return { user: null, session: null };
+        // }
+
+        const { session, user } = await lucia.validateSession(sessionId);
+        
+        return { user: user, session: session };
     } else {
         // If an unsupported authentication method is specified, return an error response
-        return { user: null, session: null };
+        const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
+        if(!token){
+            return { user: null, session: null };
+        }
+        
+        const sessionId = lucia.readBearerToken(token ?? "");
+        if(!sessionId){
+            return { user: null, session: null };
+        }
+        const { session, user } = await lucia.validateSession(sessionId);
+        return { user: user, session: session };
     }    
 }
 

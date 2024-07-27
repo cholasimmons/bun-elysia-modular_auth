@@ -38,7 +38,14 @@ export const lucia = new Lucia(adapter, {
             lastname: attributes.lastname,
             profileId: attributes.profileId,
         }
-    }
+    },
+    // getOAuthAttributes: (attributes) => {
+    //     return {
+    //         userId: attributes.userId,
+    //         providerId: attributes.providerId,
+    //         providerUserId: attributes.providerUserId,
+    //     }
+    // }
 });
 
 // IMPORTANT
@@ -48,6 +55,7 @@ declare module "lucia" {
         userId: string;
         DatabaseSessionAttributes: DatabaseSessionAttributes;
         DatabaseUserAttributes: DatabaseUserAttributes;
+        DatabaseOAuthAttributes: DatabaseOAuthAttributes;
     }
     interface DatabaseSessionAttributes {
 		ipCountry: string|null;
@@ -68,14 +76,20 @@ declare module "lucia" {
         lastname: string;
         profileId: string|null;
     }
+
+    interface DatabaseOAuthAttributes {
+        userId: string;
+        providerId: string;
+        providerUserId: number;
+    }
 }
 
 
 
-export const google = new Google(
-    Bun.env.GCLIENTID ?? '',
-    Bun.env.GCLIENT_SECRET ?? '',
-    "/login/google/callback"
+export const googleAuth = new Google(
+    Bun.env.GOOGLE_CLIENT_ID ?? '',
+    Bun.env.GOOGLE_CLIENT_SECRET ?? '',
+    "/v1/auth/login/google/callback"
 )
 
 export const apple = new Apple(
@@ -90,10 +104,8 @@ export const microsoft = new MicrosoftEntraId(
     "/login/microsoft/callback"
 )
 
-const github = new GitHub(
-    Bun.env.GHCLIENTID ?? '',
-    Bun.env.GHCLIENT_SECRET ?? '', { redirectURI: "/login/github/callback" }
-)
+export const githubAuth = new GitHub(Bun.env.GH_BASIC_CLIENT_ID ?? '',
+    Bun.env.GH_BASIC_SECRET_ID ?? '', {});
 
 export const facebook = new Facebook(
     Bun.env.FBCLIENTID ?? '',

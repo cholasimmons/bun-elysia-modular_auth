@@ -7,3 +7,16 @@ export function formatDate(date: Date): string {
 
     return `${weekday} ${day}, ${month} ${year} at ${time}hrs`;
 }
+
+export function splitWords(sentence: string, index: number = 1): string {
+    // Split the sentence into individual words
+    const words = sentence.split(' ');
+
+    // Check if the specified index is within the bounds of the words array
+    if (index > 0 && index <= words.length) {
+        return words[index - 1]; // Return the nth word (1-based index)
+    }
+
+    // If the index is out of bounds, return null
+    return sentence;
+}

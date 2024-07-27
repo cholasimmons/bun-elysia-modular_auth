@@ -1,43 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="UTF-8">
         <title>Welcome to Elysia!</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400&display=swap" rel="stylesheet">
-		<link rel="icon" type="image/x-icon" href="/favicon.ico">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap" rel="stylesheet">
+		<!-- Link to the favicon -->
+        <link rel="icon" href="/v1/public/icons/favicon.ico" type="image/x-icon">
+        <link rel="stylesheet" type="text/css" href="/v1/public/css/style.css">
     </head>
     <body>
         <main>
-            <h2>Your Web Server is active!</h2>
-            <span>All systems running 18x faster, on BunJS</span><br>
+            <h2 class="text-center mb-6">Your ElysiaJS Web Server is active!</h2>
+            <p>All systems running 18x faster, on BunJS</p><br>
+            <p class="small-text" style="display: none;">Developed by Chola Simmons</p><br>
+            <br>
+            <a class="link" href="/v1/swagger">View Swagger documentation</a>
 
-            <small><a href="https://simmons.studio" target="roseio">a RoseIO design</a></small>
+            <span class="d-flex justify-content-center text-center"><a href="https://simmons.studio" target="roseio">a RoseIO design</a></span>
         </main>
     </body>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Montserrat', Helvetica, sans-serif;
-            text-align: center;
-            height: 100%;
-            border-top: 4px orange solid;
-        }
-        small {
-            position: absolute;
-            bottom: 0;
-            color: darkgray;
-            padding: 1rem;
-            margin: 0 auto;
-            width: auto;
-        }
-        a {
-            color: darkgray;
-            text-decoration: none;
-        }
-        a:hover {
-            color: darkslateblue;
-        }
-    </style>
 </html>

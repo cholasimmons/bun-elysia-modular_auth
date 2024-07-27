@@ -10,24 +10,34 @@ datasource db {
   schemas  = ["logs", "users"]
 }
 
+model OAuth_Account {
+  providerId      String    @id @unique @map("provider_id")
+  providerUserId  String       @unique @map("provider_user_id")
+  userId          String    @unique @map("user_id")
+  user            User      @relation(fields: [userId], references: [id])
+
+  @@index([providerId, providerUserId])
+  @@map("oauth")
+  @@schema("users")
+}
+
 model User {
   id             String    @id @unique
   firstname      String
   lastname       String
-  google_id      String?   @unique
-  apple_id       String?   @unique
-  microsoft_id   String?   @unique
-  facebook_id    String?   @unique
+  username       String    @unique
   email          String    @unique
   emailVerified  Boolean   @default(false) @map("email_verified")
   phone          String?   @unique
   roles          Role[]    @default([GUEST])
-  profileId      String?   @unique
   hashedPassword String    @map("hashed_password")
   isActive       Boolean   @default(true) @map("is_active")
   isComment      String?   @map("comment")
   createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt() @map("updated_at")
   profile        Profile?  @relation("user_profile")
+  profileId      String?   @unique
+  oauth          OAuth_Account?
   authSession    Session[]
 
   @@index([id, email, createdAt(sort: Desc)])
