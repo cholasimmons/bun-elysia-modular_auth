@@ -1,0 +1,52 @@
+body {
+    margin: 0;
+    padding: 2rem 0 0 0;
+    font-family: 'Montserrat', Helvetica, sans-serif;
+    text-align: center;
+    height: 100%;
+    border-top: 4px orange solid;
+    cursor: default;
+}
+span {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    color: darkgray;
+    padding: 1rem;
+    margin: 0 auto;
+    text-align: center;
+}
+h2 {
+    color: purple
+}
+button[type='submit']{
+    background-color: purple;
+    border: none;
+    transition-duration: 300ms;
+    transition-property: all;
+    font-weight: 700;
+}
+.link {
+    background-color: purple;
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    transition-duration: 500ms;
+    transition-property: all;
+    font-weight: bold;
+}
+.link:hover {
+    background-color: lightgray;
+    color: purple;
+}
+a {
+    color: darkgray;
+    text-decoration: none;
+    font-weight: 600;
+}
+a:hover {
+    color: purple;
+}
+img {
+    user-drag: none;
+}

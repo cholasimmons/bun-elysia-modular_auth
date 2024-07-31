@@ -49,10 +49,6 @@ export class UsersService {
             if(!user) throw new NotFoundError('Could not find user with that ID');
 
             delete user.hashedPassword;
-            delete user.google_id;
-            delete user.apple_id;
-            delete user.microsoft_id;
-            delete user.facebook_id;
 
             return user;
         } catch (error) {

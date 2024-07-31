@@ -1,9 +1,6 @@
 # see all official Bun versions at https://hub.docker.com/r/oven/bun/tags
 FROM oven/bun:slim AS base
 
-# Create group and user
-RUN addgroup --system --gid 1001 bunjs
-RUN adduser --system --uid 1001 elysiajs
 
 # Set up application
 WORKDIR /usr/src/app
@@ -39,9 +36,6 @@ COPY src src
 # RUN bun test
 # RUN bun run build
 
-# Set ownership of the application files
-RUN chown -R elysiajs:bunjs /usr/src/app
-
 # copy production dependencies and source code into final image
 # FROM base AS release
 # COPY --from=install /temp/prod/node_modules node_modules
@@ -50,7 +44,7 @@ RUN chown -R elysiajs:bunjs /usr/src/app
 # COPY --from=prerelease /usr/src/app/package.json .
 
 # Switch to non-root user for added security
-USER elysiajs
+USER bun
 EXPOSE 3000/tcp
 
 # run the app

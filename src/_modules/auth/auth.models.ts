@@ -22,8 +22,27 @@ export const changePasswordBody = t.Object({
     confirmPassword: t.String({ minLength: 8 })
 })
 
+export interface GitHubUserResult {
+	id: number;
+	login: string; // username
+	email: string; // email
+    name: string;
+    avatar_url?: string;
+    created_at: Date;
+    updated_at: Date;
+}
+export interface GoogleUserResult {
+	sub: string; // UUID
+	email: string; // email
+    name: string; // Full name
+    avatar_url?: string;
+    created_at: Date;
+    updated_at: Date;
+}
+
 export const OAuth2Providers = {
     Google: "Google",
+    Apple: "Apple",
     VK: "VK",
     Microsoft: "Microsoft",
     Facebook: "Facebook",

@@ -13,7 +13,7 @@ export class UsersController {
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
-    async getAllUsers({ set, query: { isActive, profiles }, log }:any):Promise<{data: Partial<User>[], message: string}|{message: string}> {
+    getAllUsers = async({ set, query: { isActive, profiles }, log }:any):Promise<{data: Partial<User>[], message: string}|{message: string}> => {
         log.error("isActive: ", isActive);
         log.info("Status: ", set.status);
         try {
@@ -34,7 +34,7 @@ export class UsersController {
     }
 
     // Retrieve single User [ADMIN | SELF]
-    async getAccountById({ set, user, params:{ userId }, query:{ profile } }:any) {        
+    getAccountById = async({ set, user, params:{ userId }, query:{ profile } }:any) => {        
         const user_id = userId ?? user.id;        
 
         try {
@@ -56,7 +56,7 @@ export class UsersController {
     }
 
     // Retrieve User's Account status [SELF | STAFF]
-    async getAccountStatus({ set, user, params:{ userId } }:any) {        
+    getAccountStatus = async({ set, user, params:{ userId } }:any) => {        
         const user_id = userId ?? user.id;        
 
         try {

@@ -14,7 +14,6 @@ TZ=Africa/Harare # For Lusaka too
 # See the documentation for all the connection string options: https://pris.ly/d/connection-strings
 
 # Postgres
-
 DATABASE_USER=postgres
 DATABASE_PASSWORD=postgres
 DATABASE_PORT=5432
@@ -23,13 +22,20 @@ DATABASE_URL="postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${HOST}:${DATAB
 
 # Resend
 # API used for sending emails, usually only for Dev mode
-
 RESEND_API_KEY=re_1234
-
-# OAuth2 API
-GOOGLE_CLIENT_ID=""
-GOOGLE_API_KEY=""
 
 # PGAdmin
 PGADMIN_DEFAULT_EMAIL=root@root.com
 PGADMIN_DEFAULT_PASSWORD="root"
+
+
+# OAuth 2.0 API
+
+# Google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_API_KEY=
+
+# Github
+GH_BASIC_CLIENT_ID=
+GH_BASIC_SECRET_ID=

@@ -1,21 +1,25 @@
-import { lucia } from "~config/lucia";
+import { githubAuth, googleAuth, lucia } from "~config/lucia";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
-import { generateId } from "lucia";
+import { generateId, generateIdFromEntropySize, Session } from "lucia";
 import { encodeHex } from "oslo/encoding";
 import { sha256 } from "oslo/crypto";
 import { isWithinExpirationDate } from "oslo";
-import { AuthService } from ".";
+import AuthService from "./auth.service";
 import { Role, User } from "@prisma/client";
 import consts from "~config/consts";
-import { OAuth2Providers } from "./auth.models";
-
+import { GitHubUserResult, GoogleUserResult, OAuth2Providers } from "./auth.models";
+import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
+import { parseCookies, serializeCookie } from "oslo/cookie";
+import { splitWords } from "~utils/utilities";
 
 export class AuthController {
+    private authService: AuthService;
     routes = [];
-    url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? 'localhost'}:${Bun.env.PORT ?? 3000}/v${consts.api.version}`;
+    url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${consts.api.versionPrefix}${consts.api.version}`;
 
-    constructor(private authService: AuthService) {
+    constructor(authService: AuthService) {
+        this.authService = authService;
     }
 
     root({ cookie }: any):string{
@@ -29,7 +33,13 @@ export class AuthController {
         return isBrowser ? Bun.file('public/login.html') : { message: 'Use POST instead'}
     }
 
-    async login({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ cookieName }, authJWT, params }: any){
+    signupForm({ request:{ headers }}: any){
+        const isBrowser = headers.get('accept').includes('text/html');
+
+        return isBrowser ? Bun.file('public/register.html') : { message: 'Use POST instead'}
+    }
+
+    login = async ({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ cookieName }, authJWT, params }: any) => {
 
         try {
             // Check if the Authentication-Method header is present
@@ -75,6 +85,7 @@ export class AuthController {
             const payload = {
                 names: userExists.firstname + ' ' + userExists.lastname,
                 email: userExists.email,
+                username: userExists.email,
                 phone: userExists.phone,
                 roles: userExists.roles,
                 emailVerified: userExists.emailVerified,
@@ -89,6 +100,7 @@ export class AuthController {
                 id: userExists.id,
                 firstname: userExists.firstname,
                 lastname: userExists.lastname,
+                username: userExists.email,
                 roles: userExists.roles,
                 emailVerified: userExists.emailVerified,
                 createdAt: userExists.createdAt,
@@ -96,17 +108,8 @@ export class AuthController {
             });
            
             set.status = HttpStatusEnum.HTTP_200_OK;
-            // Causes issues in Insomnia as it expects both to be available
-            // if(authMethod === "Cookie"){
-            //     const {id} = await this.authService.createLuciaSession(userExists.id, headers, rememberme);
-            //     const sessionCookie = await lucia.createSessionCookie(id);
-            //     sessionCookie.value = accessToken;
-            //     set.headers["Set-Cookie"] = sessionCookie.serialize();
-            // } else if(authMethod === "JWT") {
-            //     set.headers["Authorization"] = `Bearer ${accessToken}`;
-            // }
 
-            const {id} = await this.authService.createLuciaSession(userExists.id, headers, rememberme);
+            const {id} = await this.authService.createLuciaSession(userExists.id, headers, undefined, rememberme);
             const sessionCookie = lucia.createSessionCookie(id);
             // sessionCookie.value = accessToken;
             set.headers["Authorization"] = `Bearer ${accessToken}`;
@@ -136,7 +139,7 @@ export class AuthController {
     }
 
 
-    async signup({ set, request:{headers}, body: { firstname, lastname, email, phone, password, confirmPassword} } :any){
+    signup = async({ set, request:{headers}, body: { firstname, lastname, email, phone, password, confirmPassword} } :any) => {
         
         // Create User 
         try {
@@ -157,11 +160,12 @@ export class AuthController {
                 timeCost: 5, // the number of iterations
             });
 
-            const uid = generateId(18);
+            const uid = generateId(16);
             const result: User|null = await db.user.create({ data: {
                 id: uid,
                 firstname,
                 lastname,
+                username: autoUser?.email ?? email,
                 email: autoUser?.email ?? email,
                 phone: (autoUser?.phone ?? phone) ?? null,
                 emailVerified: false,
@@ -262,7 +266,7 @@ export class AuthController {
 
 
 
-    async getEmailVerificationToken({ set, request:{headers}, params: { code }, query: { email } }: any) {
+    getEmailVerificationToken = async({ set, request:{headers}, params: { code }, query: { email } }: any) => {
         try {
             const user = await db.user.findUnique({ where: { email: email } });
 
@@ -295,7 +299,7 @@ export class AuthController {
         }
     }
 
-    async postEmailVerification({ set, user }:any) {
+    postEmailVerification = async({ set, user }:any) => {
     
         if (!user) {
             set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
@@ -319,7 +323,7 @@ export class AuthController {
 
 
 
-    async postForgotPassword({ set, body:{ email } }:any){
+    postForgotPassword = async({ set, body:{ email } }:any) => {
         try {
             const user = await db.user.findUnique({ where:{ email: email }, select: { id: true } });
 
@@ -375,7 +379,7 @@ export class AuthController {
         // return { message: 'Password successfully reset!' }
     }
 
-    async postResetPass({ set, user }:any){
+    postResetPass = async({ set, user }:any) => {
             // let em: string = email ? email : user.email;
             // console.log(user, session);
             
@@ -397,7 +401,7 @@ export class AuthController {
             return { message: `Password reset link sent to ${user.email}` };
     }
 
-    async postResetPassToken({ set, request:{headers}, body:{password, confirmPassword}, params:{token} }:any){
+    postResetPassToken = async({ set, request:{headers}, body:{password, confirmPassword}, params:{token} }:any) => {
 
         // if (typeof password !== "string" || password.length < 8) {
         //     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
@@ -417,8 +421,6 @@ export class AuthController {
             set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
             return { message: 'Token has expired. Try again' }
         }
-
-        
         
         const hashedPassword = await Bun.password.hash(password);
         await db.user.update({ where: { id: _token!.userId }, data:{ 
@@ -437,7 +439,7 @@ export class AuthController {
     
 
     
-    async getChangePassword({ set, user, body: {oldPassword, newPassword, confirmPassword} }:any){
+    getChangePassword = async({ set, user, body: {oldPassword, newPassword, confirmPassword} }:any) => {
         try {
             // find user by Key, and validate password
             const userWithPass = await db.user.findUnique({ where: { email: user.email.toLowerCase() }, select: { hashedPassword: true } });
@@ -477,116 +479,278 @@ export class AuthController {
     /* OAuth2 */
 
     // Google
-    async getGoogle({set, oauth2, cookie:{google_state, google_code_verifier}}:any) {
-        const url = await oauth2.createURL("Google");
-        url.searchParams.set("access_type", "offline");
+    async getGoogle({set}:any) {
+        const state:string = generateState();
+        const codeVerifier = generateCodeVerifier();
+        const authUrl:URL = await googleAuth.createAuthorizationURL(state, codeVerifier, { scopes: ['profile', 'email']});
 
-        set.redirect = url.href;
-        return { message: `Connecting to ${OAuth2Providers.Google}` };
-
-        // Previous OAuth2 implementation by Lucia
-        // const state = generateState();
-        // const codeVerifier = generateCodeVerifier();
-        // const url:URL = await google.createAuthorizationURL(state, codeVerifier);
-
-        
-        // google_state.value = state;
-        // google_state.set({
-        //     httpOnly: true,
-        //     secure: Bun.env.NODE_ENV === "production",
-        //     maxAge: 1000 * 60 * 15, // 15 minutes
-        //     path: "/",
-        //     sameSite: "lax"
-        // });
-        // google_code_verifier.value = codeVerifier,
-        // google_code_verifier.set({
-        //     httpOnly: true,
-        //     secure: Bun.env.NODE_ENV === "production",
-        //     maxAge: 1000 * 60 * 15, // 15 minutes
-        //     path: "/"
-        // }),
-        // set.status = HttpStatusEnum.HTTP_302_FOUND;
-        // set.redirect = url.toString();
-        // // set.headers = headrs;
-        // return;
+        set.status = HttpStatusEnum.HTTP_302_FOUND;
+        set.redirect = authUrl.href.toString();
+        set.headers["Set-Cookie"] = serializeCookie("google_oauth_state", state, {
+            httpOnly: true,
+            secure: Bun.env.NODE_ENV === "PRODUCTION", // set `Secure` flag in HTTPS
+            maxAge: 60 * 10, // 10 minutes
+            sameSite: 'lax',  // Prevent CSRF, but allow same-site requests
+            domain: '127.0.0.1',
+            path: '/'
+        });
+        set.headers["Set-Cookie"] = serializeCookie("google_oauth_code_verifier", state, {
+            httpOnly: true,
+            secure: Bun.env.NODE_ENV === "PRODUCTION", // set `Secure` flag in HTTPS
+            maxAge: 60 * 10, // 10 minutes
+            sameSite: 'lax',  // Prevent CSRF, but allow same-site requests
+            domain: '127.0.0.1',
+            path: '/'
+        });
+        return { data: null, message: `Connecting to ${OAuth2Providers.Google}` };
     }
-    async getGoogleCallback({set, oauth2, query, request:{ headers }, cookie:{google_state, google_code_verifier, lucia_session}}:any) {
-        console.debug("Headers: ",headers)
+    getGoogleCallback = async({set, request:{ headers, url }}:any) => {
+        const cookies = parseCookies(headers.get("Cookie") ?? "");
+	    const stateCookie = cookies.get("google_oauth_state") ?? null;
+	    const codeVerifierCookie = cookies.get("google_oauth_code_verifier");
+        const sessionCookie = cookies.get("session_id") ?? null;
 
-        const url:URL = await oauth2.createURL(OAuth2Providers.Google);
-        console.debug("Created URL: ",url);
+        const authUrl = new URL(url);
+	    const state = authUrl.searchParams.get("state");
+	    const code = authUrl.searchParams.get("code");
 
-        const token = await oauth2.authorize(OAuth2Providers.Google);
-        console.debug("Google token: ",token);
+        // verify searchParams
+        if (!state || !stateCookie || !code) {
+            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+            return { message: 'Invalid OAuth request', error: 'searchParams missing' }
+        }
+        // verify state
+        if (stateCookie !== state) {
+            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+            return { message: 'OAuth credentials do not match' }
+        }
 
-        // await oauth2.redirect(OAuth2Providers.Google, "/");
-        // send request to API with token
-
-
-        // Previous OAuth2 implementation by Lucia
-        // const code = query.code?.toString() ?? null;
-        // const codeVerifier = google_code_verifier.value;
-        // const state = query.state?.toString() ?? null;
-        // const stateCookie = google_state.value;
-        // if (!code || !state || !stateCookie || state !== stateCookie) {
-        //     console.log(code, state, stateCookie);
-        //     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-        //     return;
-        // }
-
-
-        // try {
-        //     const tokens = await google.validateAuthorizationCode(code, codeVerifier);
-        //     const googleUserResponse = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
-        //         headers: {
-        //             Authorization: `Bearer ${tokens.accessToken}`
-        //         }
-        //     });
-        //     const googleUserResult = await googleUserResponse.json();
-        //     const existingUser = await db.user.findUnique({
-        //         where: { google_id: googleUserResult.id}
-        //     });
-
-        //     if (existingUser) {
-        //         const session = await this.authService.createLuciaSession(existingUser.id, headers);
-        //         const sessionCookie = lucia.createSessionCookie(session.id);
-        //         lucia_session.value = sessionCookie.value;
-        //         lucia_session.set(sessionCookie.attributes);
-
-        //         set.status = HttpStatusEnum.HTTP_302_FOUND;
-        //         set.headers['Set-Cookie'] = sessionCookie.serialize();
-        //         set.redirect = '/';
-
-        //         return;
-        //     }
-    
-        //     const userId = generateId(15);
-        //     await db.user.create({ data: {
-        //         id: userId,
-        //         google_id: googleUserResult.id,
-        //         firstname: googleUserResult.firstname,
-        //         lastname: googleUserResult.lastname,
-        //         email: googleUserResult.email,
-        //         hashedPassword: googleUserResult.hashedPassword,
-        //         isActive: true,
-        //     } });
-        //     // , username: googleUserResult.login
-
-        //     const session = await this.authService.createLuciaSession(userId, request.headers);
-        //     const sessionCookie = lucia.createSessionCookie(session.id).serialize();
-
-        //     set.headers["Set-Cookie"] = sessionCookie;
-        //     return { message: 'Successfully created Google User' };
-        // } catch (e) {
-        //     console.error(e);
+        try {
+            // Exchange the authorization code for tokens
+            const tokens = await googleAuth.validateAuthorizationCode(code, codeVerifierCookie!);
             
-        //     if (e instanceof OAuth2RequestError && e.message === "bad_verification_code") {
-        //         // invalid code
-        //         set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-        //         return { meesage: 'Verification code is not 💯' };
-        //     }
-        //     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-        //     return { message: 'An error occurred creating that Google account' };
-        // }
+            // Fetch user details from GitHub
+            const googleUserResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`
+                }
+            });
+
+            if (!googleUserResponse.ok) {
+                return { message: `No Google response: ${googleUserResponse.statusText}` };
+            }
+
+            const googleUserResult: GoogleUserResult = await googleUserResponse.json();
+    
+            // Check if the user already exists
+            const existingUser = await db.oAuth_Account.findUnique({ where: { providerId: OAuth2Providers.Google, providerUserId: googleUserResult.sub } });
+
+            if (existingUser && existingUser.userId) {                
+                const session:any = await this.authService.createLuciaSession(existingUser.userId, headers, undefined, true);
+                
+                const sessionCookie = lucia.createSessionCookie(session.id);
+                set.status = HttpStatusEnum.HTTP_302_FOUND;
+                set.headers["Set-Cookie"] = sessionCookie.serialize();
+                set.redirect = `${consts.api.versionPrefix}${consts.api.version}/`;
+                return { message: `Logged back in using ${OAuth2Providers.Google}` }
+            }
+
+            // A new account has to be created, we need additional data such as names & email
+
+            // If public profile on Github has no email address
+            if(!googleUserResult.email){
+                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+                return { message: 'No public email available', error:'Your Google account has no public email' }
+            }
+    
+            const userId = generateIdFromEntropySize(10); // 16 characters long
+            await db.$connect();
+            await db.oAuth_Account.create({
+                data:{
+                    providerId: OAuth2Providers.Google,
+                    providerUserId: String(googleUserResult.sub),
+                    user: {
+                        create: {
+                            id: userId,
+                            username: googleUserResult.email,
+                            firstname: splitWords(googleUserResult.name ?? '', 1),
+                            lastname: splitWords(googleUserResult.name ?? '', 2),
+                            email: googleUserResult.email,
+                            emailVerified: true,
+                            roles: [Role.GUEST],
+                            hashedPassword: '',
+                            createdAt: googleUserResult.created_at,
+                            updatedAt: googleUserResult.updated_at
+                        }
+                    } 
+                }
+            })
+            await db.$disconnect();
+    
+            const session = await this.authService.createLuciaSession(userId, headers, undefined, true);
+            const sessionCookie = lucia.createSessionCookie(session.id);
+            set.status = HttpStatusEnum.HTTP_302_FOUND;
+            set.headers["Set-Cookie"] = sessionCookie.serialize();
+            set.redirect = "/";
+            return { message: 'Logged in as new Github User', data: googleUserResult }
+        } catch(e) {
+            console.log(e);
+            if (e instanceof OAuth2RequestError) {
+                // bad verification code, invalid credentials, etc
+                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+                return { message: 'Invalid OAuth code', error: e}
+            }
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: 'Unable to validate OAuth callback'}
+        }
+    }
+
+    // Github
+    
+    getGithub = async ({set}:any) => {
+        try {
+            const state:string = generateState();
+            const authUrl:URL = await githubAuth.createAuthorizationURL(state);
+            // console.debug("auth: ",authUrl);
+            // console.debug("href: ",authUrl.href);
+            
+
+            set.status = HttpStatusEnum.HTTP_302_FOUND;
+            set.redirect = authUrl.href.toString();
+            set.headers["Set-Cookie"] = serializeCookie("github_oauth_state", state, {
+                httpOnly: true,
+				secure: Bun.env.NODE_ENV === "PRODUCTION", // set `Secure` flag in HTTPS
+				maxAge: 60 * 10, // 10 minutes
+                sameSite: 'lax',  // Prevent CSRF, but allow same-site requests
+                domain: '127.0.0.1',
+				path: '/'
+            });
+            return { data: null, message: `Connecting to ${OAuth2Providers.Github}` };
+        } catch (error) {
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: "Unable to process OAuth login" };
+        }
+    }
+    getGithubCallback = async({set, request:{ headers, url }}:any) => {
+        const cookies = parseCookies(headers.get("Cookie") ?? "");
+	    const stateCookie = cookies.get("github_oauth_state") ?? null;
+        const sessionCookie = cookies.get("session_id") ?? null;
+
+        const authUrl = new URL(url);
+	    const state = authUrl.searchParams.get("state");
+	    const code = authUrl.searchParams.get("code");
+
+        // Verify the session cookie
+        if (sessionCookie) {
+            try {
+                const session = await lucia.validateSession(sessionCookie);
+                if (session && session.user?.id) {
+                    set.status = HttpStatusEnum.HTTP_302_FOUND;
+                    set.redirect = "/";
+                    return { message: 'Already logged in' };
+                }
+            } catch (e) {
+                console.error("Invalid session cookie. Not logged in?", e);
+            }
+        }
+
+        // Debug
+        // console.debug("cookies: ",cookies);
+        // console.debug("searchParams: ",authUrl.searchParams);
+        // console.debug("state: ",state);
+        // console.debug("code: ",code);
+
+        // verify searchParams
+        if (!state || !stateCookie || !code) {
+            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+            return { message: 'Invalid OAuth request', error: 'searchParams missing' }
+        }
+        // verify state
+        if (stateCookie !== state) {
+            set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+            return { message: 'OAuth credentials do not match' }
+        }
+
+        try {
+            // Exchange the authorization code for tokens
+            const tokens = await githubAuth.validateAuthorizationCode(code);
+            
+            // Fetch user details from GitHub
+            const githubUserResponse = await fetch("https://api.github.com/user", {
+                headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`
+                }
+            });
+
+            if (!githubUserResponse.ok) {
+                return { message: `No GitHub response: ${githubUserResponse.statusText}` };
+            }
+
+            const githubUserResult: GitHubUserResult = await githubUserResponse.json();
+            // console.debug("Github User: ",githubUserResult);
+            
+    
+            // Check if the user already exists
+            const existingUser = await db.oAuth_Account.findUnique({ where: { providerId: OAuth2Providers.Github, providerUserId: String(githubUserResult.id) } });            
+
+            if (existingUser && existingUser.userId) {                
+                const session:any = await this.authService.createLuciaSession(existingUser.userId, headers, undefined, true);
+                
+                const sessionCookie = lucia.createSessionCookie(session.id);
+                set.status = HttpStatusEnum.HTTP_302_FOUND;
+                set.headers["Set-Cookie"] = sessionCookie.serialize();
+                set.redirect = `${consts.api.versionPrefix}${consts.api.version}/`;
+                return { message: 'Logged back in using Github' }
+            }
+
+            // A new account has to be created, we need additional data such as names & email
+
+            // If public profile on Github has no email address
+            if(!githubUserResult.email){
+                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+                return { message: 'No public email available', error:'Your Github account has no public email' }
+            }
+    
+            const userId = generateIdFromEntropySize(10); // 16 characters long
+            await db.$connect();
+            await db.oAuth_Account.create({
+                data:{
+                    providerId: OAuth2Providers.Github,
+                    providerUserId: String(githubUserResult.id),
+                    user: {
+                        create: {
+                            id: userId,
+                            username: githubUserResult.login,
+                            firstname: splitWords(githubUserResult.name ?? '', 1),
+                            lastname: splitWords(githubUserResult.name ?? '', 2),
+                            email: githubUserResult.email,
+                            emailVerified: true,
+                            roles: [Role.GUEST],
+                            hashedPassword: '',
+                            createdAt: githubUserResult.created_at,
+                            updatedAt: githubUserResult.updated_at
+                        }
+                    } 
+                }
+            })
+            await db.$disconnect();
+    
+            const session = await this.authService.createLuciaSession(userId, headers, undefined, true);
+            const sessionCookie = lucia.createSessionCookie(session.id);
+            set.status = HttpStatusEnum.HTTP_302_FOUND;
+            set.headers["Set-Cookie"] = sessionCookie.serialize();
+            set.redirect = "/";
+            return { message: 'Logged in as new Github User', data: githubUserResult }
+
+        } catch (e) {
+            console.log(e);
+            if (e instanceof OAuth2RequestError) {
+                // bad verification code, invalid credentials, etc
+                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+                return { message: 'Invalid OAuth code', error: e}
+            }
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: 'Unable to validate OAuth callback'}
+        }
     }
 }

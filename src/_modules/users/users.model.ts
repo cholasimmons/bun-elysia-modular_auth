@@ -63,13 +63,13 @@ export const UserResponseDTO: TSchema = t.Object({
     createdAt: t.Optional(t.Date())
 })
 
-export const ProfileQueriesDTO = t.Object({
+export const profileQueriesDTO = {
     account: t.Optional(t.BooleanString({ default: false })),
-})
-export const UserQueriesDTO = t.Object({
-    isActive: t.Optional(t.BooleanString()),
-    profile: t.Optional(t.BooleanString({default: false})),
-})
+}
+export const userQueriesDTO = {
+    isActive: t.Optional(t.Boolean()),
+    profile: t.Optional(t.Boolean({default: false})),
+}
 
 
 export const AutoUserBodyDTO = t.Object({

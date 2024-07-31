@@ -28,7 +28,7 @@ services:
     #command: "/bin/sh -c 'sleep 10 && bun prisma:seed'"
     #command: "/bin/sh -c 'bunx prisma migrate deploy'"
     volumes:
-      - api_migrations:/usr/src/app/prisma/migrations/0_init
+      - api_migration_two:/usr/src/app/prisma/migrations/0_init
     networks:
       default:
         aliases:
@@ -57,7 +57,7 @@ services:
           - db
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - api_migrations:/docker-entrypoint-initdb.d:ro  # Mount SQL migrations directory as Read-only
+      - api_migration_two:/docker-entrypoint-initdb.d:ro  # Mount SQL migrations directory as Read-only
 
   pgadmin:
     image: dpage/pgadmin4:8.8
@@ -85,6 +85,6 @@ services:
 #         - subnet: 172.10.0.0/16
 
 volumes:
-  api_migrations:
+  api_migration_two:
   pgdata:
   pgadmin_data:

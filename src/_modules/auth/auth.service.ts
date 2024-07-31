@@ -1,6 +1,6 @@
 import { AutoEnrol, Role, User } from "@prisma/client";
-import { TimeSpan, generateId } from "lucia";
-import { createDate, isWithinExpirationDate } from "oslo";
+import { generateId, Session } from "lucia";
+import { createDate, isWithinExpirationDate, TimeSpan } from "oslo";
 import { encodeHex } from "oslo/encoding";
 import { alphabet, generateRandomString, sha256 } from "oslo/crypto";
 import { db } from "~config/prisma";
@@ -12,7 +12,9 @@ import consts from "~config/consts";
 // const nextYear = today.getUTCFullYear() + 1;
 // today.setFullYear(nextYear)
 
-export class AuthService {
+class AuthService {
+    private static instance: AuthService;
+
     private today: Date;
     // today.setHours(0, 0, 0, 0); // Set time to midnight to represent the start of today
     private oneDayAgo: Date;
@@ -22,6 +24,14 @@ export class AuthService {
         this.today = this.oneDayAgo = new Date();
         this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
         this.resend = new Resend(Bun.env.RESEND_API_KEY ?? '1234');
+    }
+
+    public static getInstance(): AuthService {
+        if (!AuthService.instance) {
+            AuthService.instance = new AuthService();
+        }
+        
+        return AuthService.instance;
     }
 
 
@@ -73,17 +83,17 @@ export class AuthService {
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe:boolean = false){
-        const userAgent = headers.get('user-agent') ?? "Unknown";
-        const userAgentHash = (userAgent === 'Unknown' ? userAgent : btoa(userAgent));
+    async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe:boolean = false):Promise<Session>{
+        const userAgent = headers.get('user-agent');
+        const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
 
-        const os = headers.get('os') ?? "Unknown";
-        const osHash = (os === 'Unknown' ? os : btoa(os));
+        const os = headers.get('os');
+        const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
 
         return lucia.createSession(userId, {
-            ipCountry: headers.get('ipCountry'),
+            ipCountry: headers.get('ipCountry') ?? 'Unknown',
             os: osHash,
-            host: headers.get('host'),
+            host: headers.get('host') ?? 'Unknown',
             userAgentHash: userAgentHash,
             fresh: true,
             expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
@@ -151,6 +161,12 @@ export class AuthService {
 
     }
 
+    health(){
+        console.log('Auth Service working ok! HEALTH');
+        
+        return 'Auth Service working ok! HEALTH'
+    }
+
 
     async createPasswordResetToken(userId: string): Promise<string> {
         // optionally invalidate all existing tokens
@@ -212,3 +228,5 @@ export class AuthService {
         });
     }
 }
+
+export default AuthService;
