@@ -5,6 +5,7 @@ body {
     text-align: center;
     height: 100%;
     border-top: 4px orange solid;
+    cursor: default;
 }
 span {
     position: absolute;
@@ -45,4 +46,7 @@ a {
 }
 a:hover {
     color: purple;
+}
+img {
+    user-drag: none;
 }

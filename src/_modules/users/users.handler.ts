@@ -2,8 +2,9 @@ import Elysia, { t } from "elysia";
 import { UsersController, UsersService } from ".";
 import { AuthService } from "../auth";
 import { checkAuth, checkCookieAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
-import { UserQueriesDTO,AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, ProfileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, UpdateProfileBodyDTO } from "./users.model";
+import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, UpdateProfileBodyDTO, userQueriesDTO } from "./users.model";
 import { swaggerDetails } from "~utils/response_helper";
+import { paginationOptions } from "~modules/root/root.models";
 
 const usersService = new UsersService();
 const authService = new AuthService();
@@ -19,7 +20,10 @@ export const UsersHandler = new Elysia({
     // Get all Users [STAFF]
     .get('/', users.getAllUsers, {
         beforeHandle: [ checkForProfile, checkIsStaff ],
-        query: UserQueriesDTO,
+        query: t.Object({
+            ...paginationOptions,
+            ...userQueriesDTO,
+        }),
         response: {
             200: t.Union([
                 t.Object({ data: t.Array(UserResponseDTO), message: t.Optional( t.String({ default: 'Successfully retrieved Users' }) ) }),
@@ -33,7 +37,7 @@ export const UsersHandler = new Elysia({
 
     // Get Current logged in User [SELF]
     .get('/user', users.getAccountById, {
-        query: UserQueriesDTO,
+        query: t.Object({ ...userQueriesDTO }),
         response: {
             200: t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
@@ -48,7 +52,7 @@ export const UsersHandler = new Elysia({
         params: t.Object({
             userId: t.String()
         }),
-        query: UserQueriesDTO,
+        query: t.Object({ ...userQueriesDTO }),
         response: { 
             200: t.Union([
                 t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
@@ -62,7 +66,7 @@ export const UsersHandler = new Elysia({
 
 
     .get('/profile', users.getMyProfile,{
-        query: ProfileQueriesDTO,
+        query: t.Object({ ...profileQueriesDTO }),
         response: {
             200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
             404: t.Object({ message: t.String({ default:'Profile does not exist' })}),
@@ -75,7 +79,7 @@ export const UsersHandler = new Elysia({
     .get('/profile/:userId', users.getProfileByUserId,{
         beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
-        query: ProfileQueriesDTO,
+        query: t.Object({ ...profileQueriesDTO }),
         response: {
             200: t.Union([
                 t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved User Profile' }) }),
@@ -89,7 +93,7 @@ export const UsersHandler = new Elysia({
 
     .get('/profiles', users.getAllProfiles, {
         beforeHandle: [checkIsStaff],
-        query: ProfileQueriesDTO,
+        query: t.Object({ ...paginationOptions, ...profileQueriesDTO }),
         response: {
             200: t.Union([
                 t.Object({ data: t.Array(ProfileResponseDTO), message: t.String({ default: 'Successfully retrieved n User Profiles' }) }),
@@ -178,7 +182,7 @@ export const UsersHandler = new Elysia({
 
     // Update User Profile [SELF]
     .patch('/profile', users.updateUserProfile, {
-        query: ProfileQueriesDTO,
+        query: t.Object({ ...profileQueriesDTO }),
         body: UpdateProfileBodyDTO,
         response: {
             200: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),
@@ -192,7 +196,7 @@ export const UsersHandler = new Elysia({
     .patch('/profile/:userId', users.updateUserProfile, {
         beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
-        query: ProfileQueriesDTO,
+        query: t.Object({ ...profileQueriesDTO }),
         body: UpdateProfileBodyDTO,
         response: {
             200: t.Union([

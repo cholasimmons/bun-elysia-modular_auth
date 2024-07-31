@@ -28,32 +28,30 @@ const customResponse = ({ response, set }:{ response: any, set: any }): any => {
     let err: string|null = null;
     let dta: any|null = null;
     let cde: number = 0;
+    let ttl: number|null = null;
+    let cnt: number|null = null;
+    let pge: number|null = null;
 
-    const sanitizeResponse = () => {
-        // Capture "message"  and "data" data from response
-        msg = response?.message ?? null;
-        err = response?.error ?? null;
-        dta = response?.data ?? null;
-        cde = response?.code ?? null;
-        delete response?.message;
-        delete response?.error;
-        delete response?.data;
-        delete response?.cde;
-    }
-    
-    // if(set.status !== 401 && set.status !== 403){
-        sanitizeResponse();
-    // }
+    // Capture "message"  and "data" data from response
+    msg = response?.message ?? null;
+    err = response?.error ?? null;
+    dta = response?.data ?? null;
+    cde = response?.code ?? set.status;
+    ttl = response?.total;
+    cnt = response?.count;
+    pge = response?.page;
+    // delete response?.message;
+    // delete response?.error;
+    // delete response?.data;
+    // delete response?.cde
 
-    // Check if response is an empty object
-    const isEmptyObject = (response: Response): boolean => 
-        // Check if the object is not null and is of type 'object'
-        response !== null && typeof response === 'object' && Object.keys(response).length === 0;
-
-    const responseObject = {
+    const responseObject:any = {
         data: dta,
+        page: pge,
+        count: cnt,
+        total: ttl,
         success: [200, 201, 202].includes(cde),
-        code: cde ?? set.status,
+        code: cde,
         message: msg ?? (response instanceof Object ? null : String(response)),
         error: err ?? null
     };

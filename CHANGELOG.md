@@ -10,6 +10,8 @@
 - New database table `OAuth_Account` for multiple OAuth login
 - User database object now takes `username` string input which is always the user's email (for now)
 - Registration screen for web browser (placeholder)
+- Added `prismaSearch` to the prisma config file to handle pagination on user requests
+- Added `paginationOptions` to the new `root.models.ts` file to assist with pagination and search queries
 
 ### Changed
 
@@ -17,6 +19,7 @@
 - Changes to `schema.prisma` and `auth/login` to accomodate the OAuth2 providers
 - Welcome screen and Login screen for browsers beautified
 - testing Buffer functions over btoa() for base64 encoding/decoding
+- DTO's no longer derive from `t.Object({})` but `{}`, as we need to "spread" them with the paginationOptions
 
 ### Fixed
 
