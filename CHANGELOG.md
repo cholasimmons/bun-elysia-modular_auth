@@ -12,6 +12,7 @@
 - Registration screen for web browser (placeholder)
 - Added `prismaSearch` to the prisma config file to handle pagination on user requests
 - Added `paginationOptions` to the new `root.models.ts` file to assist with pagination and search queries
+- Added Github Actions file to automatically build and push a linux/arm64 image to docker when a `git push` is performed on build branch
 
 ### Changed
 
