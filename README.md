@@ -1,6 +1,6 @@
 # Modular Elysia JS app | Authentication template (Bun runtime)
 
-## (Test It)[https://hello.api.simmons.studio]
+## [Test It](https://hello.api.simmons.studio)
 
 ### Features
 - Lucia Auth v3
