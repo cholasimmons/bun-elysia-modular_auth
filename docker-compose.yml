@@ -26,7 +26,7 @@ services:
       - DATABASE_NAME=authdb
       - DATABASE_URL="postgresql://postgres:postgres@db:5432/authdb?schema=public"
     #command: "/bin/sh -c 'sleep 10 && bun prisma:seed'"
-    #command: "/bin/sh -c 'bunx prisma migrate deploy'"
+    command: "/bin/sh -c 'bunx prisma migrate deploy'"
     volumes:
       - api_migration_two:/usr/src/app/prisma/migrations/0_init
     networks:

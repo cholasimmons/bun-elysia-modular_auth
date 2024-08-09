@@ -1,5 +1,5 @@
 import { TSchema, t } from "elysia";
-import { DocumentType, Gender, Role } from "@prisma/client";
+import { DocumentType, Gender, Role, SubscriptionType } from "@prisma/client";
 
 export const ProfileBodyDTO = t.Object({
     firstname: t.Optional(t.String()),
@@ -17,50 +17,61 @@ export const ProfileResponseDTO: TSchema = t.Object({
     id: t.String(),
     bio: t.Optional(t.Nullable(t.String())),
     userId: t.Optional(t.Nullable(t.String())),
-    user: t.Optional(t.Nullable(t.Object({}))),
+    user: t.Optional(t.Nullable(t.Object(t.Any()))),
     documentId: t.String({maxLength: 12}),
-    documentType: t.String(DocumentType),
+    documentType: t.Enum(DocumentType),
     photoId: t.Optional(t.Nullable(t.String())),
-    gender: t.String(Gender),
+    gender: t.Enum(Gender),
 
     firstname: t.String(),
     lastname: t.String(),
     phone: t.Optional(t.Nullable(t.String())),
     email: t.String({ format:"email", default:'abc@email.com' }),
 
+    supportLevel: t.Number(),
+    subscriptionType: t.Enum(SubscriptionType),
+    subscription: t.Optional(t.Nullable(t.Object(t.Any()))),
+
     isActive: t.Boolean(),
     isComment: t.Optional(t.Nullable(t.String())),
     createdAt: t.Date(),
     updatedAt: t.Optional(t.Date())
 });
-export const UpdateProfileBodyDTO: TSchema = t.Object({
+export const updateProfileBodyDTO = {
     bio: t.Optional(t.String()),
     photo: t.Optional(t.File({type: 'image'})),
     firstname: t.Optional(t.String()),
     lastname: t.Optional(t.String()),
     // address: t.Optional(t.String()),
+    documentId: t.Optional(t.String({maxLength: 12})),
+    documentType: t.Optional(t.Enum(DocumentType)),
     gender: t.Optional(t.Enum(Gender)),
     supportLevel: t.Optional(t.Number()),
     phone: t.Optional(t.String()),
 
-    isActive: t.Optional(t.Boolean()),
+    isActive: t.Optional(t.BooleanString()),
     isComment: t.Optional(t.String())
-});
+};
 
 export const UserResponseDTO: TSchema = t.Object({
-    id: t.Optional(t.String()),
+    id: t.String(),
     firstname: t.String(),
     lastname: t.String(),
+    username: t.String(),
     email: t.String({ format: 'email', default: 'abc@email.com' }),
     emailVerified: t.Boolean(),
     phone: t.Optional(t.Nullable(t.String())),
     roles: t.Array(t.Enum(Role)),
     profile: t.Optional(t.Nullable(ProfileResponseDTO)),
-    // profileId: t.Optional(t.Nullable(t.String())),
+    profileId: t.Optional(t.Nullable(t.String())),
 
-    isActive: t.Optional(t.Boolean()),
+    oauth: t.Optional(t.Nullable(t.Any())),
+    authSession: t.Optional(t.Nullable(t.Array(t.Object(t.Any())))),
+
+    isActive: t.Boolean(),
     isComment: t.Optional(t.Nullable(t.String())),
-    createdAt: t.Optional(t.Date())
+    createdAt: t.Date(),
+    updatedAt: t.Optional(t.Nullable(t.Date()))
 })
 
 export const profileQueriesDTO = {

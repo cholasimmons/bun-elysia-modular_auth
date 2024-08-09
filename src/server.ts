@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import { RootHandler } from "~modules/root/index";
 import { AuthHandler } from "~modules/auth/index";
 import { UsersHandler } from "~modules/users/index";
+import { FilesHandler } from "~modules/files";
 
 
 // ROUTES
@@ -18,6 +19,9 @@ export function registerControllers(app:Elysia){
 
   // users
   app.use(UsersHandler);
+
+  // files
+  app.use(FilesHandler);
 
   console.info("Loading Handlers... Done!");
 }

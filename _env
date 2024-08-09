@@ -3,7 +3,6 @@ NODE_ENV=development
 PORT=3000
 HOST=localhost
 JWSCRT=asecurepassw0rd
-JWTNAME=authJWT
 TZ=Africa/Harare # For Lusaka too
 
 # This was inserted by `prisma init`:
@@ -23,6 +22,18 @@ DATABASE_URL="postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${HOST}:${DATAB
 # Resend
 # API used for sending emails, usually only for Dev mode
 RESEND_API_KEY=re_1234
+
+# Minio
+MINIO_HOST=${HOST}
+MINIO_PORT=9000
+MINIO_ROOT_USER=
+MINIO_ROOT_PASSWORD=
+
+BUCKET_USERPHOTOS=users
+BUCKET_PRODUCTSPHOTOS=products
+
+IMAGE_QUALITY=78
+THUMBNAIL_QUALITY=48
 
 # PGAdmin
 PGADMIN_DEFAULT_EMAIL=root@root.com

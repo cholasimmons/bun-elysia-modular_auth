@@ -27,6 +27,12 @@ import { registerControllers } from "./server";
 // import { logger } from "@bogeychan/elysia-logger";
 import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
+import { FilesController } from "~modules/files";
+import { AuthService } from "./_modules";
+
+
+const authService = AuthService.getInstance();
+const files = new FilesController();
 
 
 try {
@@ -91,7 +97,7 @@ try {
     // JWT
     .use(
       jwt({
-          name: Bun.env.JWTNAME,
+          name: 'authJWT',
           secret: Bun.env.JWSCRT!,
           exp: `${consts.auth.jwtMaxAge}d`
       })
@@ -108,6 +114,16 @@ try {
       timezone: Bun.env.TZ || 'Europe/London',
       maxRuns: undefined,
       run() {
+        authService.clearExpiredEmailVerificationCodes().then((res:any) => {
+          console.log("Cleared all expired verification codes. ",res)
+        });
+
+        files.fileRecon().then((r:any) => {
+          console.log('File recon success. ',r.fileName);
+        }).catch(e => {
+          console.error("Couldn't recon file",);
+        })
+
         console.log('[CRON] 24 hour mark')
 
         lucia.deleteExpiredSessions().then(() => {
@@ -136,8 +152,8 @@ try {
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
     .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
-    .mapResponse(customResponse)
     .onError(({ code, error, set }:any) => ErrorMessages(code, error, set)) // General Error catching system
+    .mapResponse(customResponse)
     .onStop(gracefulShutdown);
 
     console.log("Initializing Elysia... Done!");

@@ -1,5 +1,5 @@
 import { NotFoundError } from "elysia";
-import { Prisma, Profile, Role, User  } from "@prisma/client";
+import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
@@ -61,58 +61,43 @@ export class UsersService {
         const { firstname, lastname, documentId, documentType, gender, bio, email, phone,
             supportLevel, userId, photoId } = data;
         try {
-            console.log("Received User Profile data: ",data);
+            // console.log("Received User Profile data: ",data);
             
-            // Create new User Profile
-            // const updatedUser = await db.user.update({
-            //     where:{
-            //         id: userId
-            //     },
-            //     data:{
-            //         profile: {
-            //             create: {
-            //                 firstname, lastname, documentId, documentType,
-            //                 gender, bio, email, phone, supportLevel, photoId
-            //             }
-            //         }
-            //     },
-            //     include: { profile:true }
-            // })
-
-
-            const newProf: Profile = await db.profile.create({
-                data: {...data },
-                include: {
-                    user: true
-                }
-            });
-
-            await db.user.update({
+            const freshUser:any = await db.user.update({
                 where:{
                     id: userId
                 },
                 data:{
-                    profileId: newProf.id
-                    // profile: {
-                    //     connect: {
-                    //         firstname, lastname, documentId, documentType,
-                    //         gender, bio, email, phone, supportLevel, photoId
-                    //     }
-                    // }
-                }
+                    profile: {
+                        create: {
+                            firstname, lastname, documentId, documentType, gender, bio, email, phone, supportLevel, photoId, subscriptionType: SubscriptionType.FREE,
+                        }
+                    }
+                },
+                include: { profile: true }
             })
 
-            if(!newProf){
-                throw 'Could not create User Profile'
+
+            if(!freshUser.profileId){
+                throw 'Could not update User with new User Profile'
             }
 
-            // delete newProf.user.hashedPassword;
-            // delete newProf.user.google_id;
-            // delete newProf.user.apple_id;
-            // delete newProf.user.microsoft_id;
-            // delete newProf.user.facebook_id;
+            // return user object without sensitive data
+            const returnSafeUser = {
+                ...freshUser.profile,
+                user:{
+                    id: freshUser.id,
+                    firstname: freshUser.firstname,
+                    lastname: freshUser.lastname,
+                    username: freshUser.username,
+                    roles: freshUser.roles,
+                    emailVerified: freshUser.emailVerified,
+                    createdAt: freshUser.createdAt,
+                    profileId: freshUser.profile.id
+                } 
+            }
 
-            return newProf;
+            return returnSafeUser as Profile;
         } catch(e) {
             console.error("Could not persist new profile");
             throw e

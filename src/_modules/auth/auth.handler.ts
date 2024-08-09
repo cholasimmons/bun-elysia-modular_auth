@@ -107,7 +107,7 @@ export const AuthHandler = new Elysia({
     .post('/register', authController.signup, {
         body: RegisterUserDTO,
         response: {
-            201: t.Object({ message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
+            201: t.Object({ data: t.Any(), message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
             400: t.Object({ message: t.String({ default: 'A data persistence problem occurred' }) }),
             406: t.Object({ message: t.String({ default: 'That email address is taken' }) }),
             409: t.Object({ message: t.String({ default: 'That email address is already taken' }) }),

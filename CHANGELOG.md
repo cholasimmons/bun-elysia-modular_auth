@@ -1,6 +1,26 @@
 # Changelog
 
 
+## [0.4.1] - 11-08-2024
+
+### Added
+
+- Added MinIO for file storage (service must be running to use, just like database service)
+- included `mime` package and `files` module for file related endpoints
+- included `sharp` image processing library for image manipulation, including overlaying of watermarks
+- added `images{}` to the `config/consts.ts` file to manage image resolution and quality, fallbacks are hardcoded incase of missing values (also available in .env file)
+
+### Changed
+
+- "JWTNAME" from `.env` file removed, JWT token name now hardcoded into system
+- Login return data is based on `Authentication-Method` header, 'JWT' for mobile, 'Cookie' for Browser
+
+### Removed
+
+- Problematic else clause in `authCheck` that caused the availability of a JWT token to overthrow the authMethod
+
+
+
 ## [0.4.0] - 31-07-2024
 
 ### Added

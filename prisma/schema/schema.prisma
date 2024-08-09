@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["logs", "users"]
+  schemas  = ["logs", "users", "files"]
 }
 
 model OAuth_Account {
@@ -89,21 +89,26 @@ model PasswordResetToken {
 model Profile {
   id           String       @id @unique @default(uuid())
   bio          String?
-  userId       String?      @unique
-  documentId   String       @map("document_id")
+  userId       String?      @unique @map("user_id")
+  user         User?        @relation("user_profile", fields: [userId], references: [id])
+  documentId   String       @map("document_id") // NRC / Passport ID  
   documentType DocumentType @map("document_type")
   photoId      String?
   gender       Gender       @default(OTHER)
+
   firstname    String
   lastname     String
   email        String       @unique
-  phone        String       @unique
+  phone        String?      @unique
   supportLevel Int          @default(0) @db.SmallInt
+  subscriptionType  SubscriptionType
+  subscription      Subscription  @relation("user_subscription", fields: [subscriptionType], references: [name])
+
   isActive     Boolean      @default(true) @map("is_active")
-  isComment    String?      @map("comment")
+  isComment    String?      @map("comment") // Explain why Profile is inactive
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
-  user         User?        @relation("user_profile", fields: [userId], references: [id])
+
 
   @@map("profiles")
   @@schema("users")
@@ -123,6 +128,19 @@ model AutoEnrol {
   @@map("auto_enrols")
   @@schema("users")
 }
+
+model Subscription {
+  id       String   @id @default(cuid())
+  name     SubscriptionType   @unique
+  price    Decimal  @db.Money
+  features String[]
+  user      Profile[]   @relation("user_subscription")
+
+  @@map("subscriptions")
+  @@schema("users")
+}
+
+
 
 enum Role {
   GUEST
@@ -145,5 +163,12 @@ enum DocumentType {
   NRC
   PASSPORT
 
+  @@schema("users")
+}
+
+enum SubscriptionType {
+  FREE
+  PREMIUM
+  ELITE
   @@schema("users")
 }

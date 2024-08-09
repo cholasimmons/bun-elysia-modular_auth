@@ -2,27 +2,34 @@ import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
 import { AutoEnrol, Profile, User } from "@prisma/client";
-import { AuthService } from "..";
+import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
-import { formatDate } from "~utils/utilities";
+import { formatDate, usernameFromEmail } from "~utils/utilities";
+import { BucketType, IImageUpload } from "~modules/files/files.model";
 
 
 export class UsersController {
-    constructor(private usersService: UsersService, private authService: AuthService) {}
+    private usersService: UsersService;
+    private authService: AuthService;
+    private filesService: FilesService;
+
+    constructor() {
+        this.usersService = new UsersService();
+        this.authService = AuthService.getInstance();
+        this.filesService = new FilesService();
+    }
 
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
-    getAllUsers = async({ set, query: { isActive, profiles }, log }:any):Promise<{data: Partial<User>[], message: string}|{message: string}> => {
-        log.error("isActive: ", isActive);
-        log.info("Status: ", set.status);
+    getAllUsers = async({ set, query: { isActive, profiles } }:any) => {
         try {
             const users = await this.usersService.getAll(isActive, profiles);
 
-            // if(!users){
-            //     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            //     return { message: 'Could not fetch Users' }
-            // }
+            if(!users){
+                set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+                return { message: 'Could not fetch Users' }
+            }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: users, message: `Retrieved ${users.length > 1 ? users.length : '0'} Users` }
@@ -34,8 +41,8 @@ export class UsersController {
     }
 
     // Retrieve single User [ADMIN | SELF]
-    getAccountById = async({ set, user, params:{ userId }, query:{ profile } }:any) => {        
-        const user_id = userId ?? user.id;        
+    getAccountById = async({ set, user, params, query:{ profile } }:any) => {        
+        const user_id = params?.userId ?? user.id ?? null;
 
         try {
             if(!user_id){
@@ -43,7 +50,7 @@ export class UsersController {
                 return { message: 'No User details found' };
             }
 
-            const u: Partial<User> = await this.usersService.getUser(user_id, {profile})
+            const u: Partial<User> = await this.usersService.getUser(user_id, {profile});
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: u, message: 'Successfully retrieved User' };
@@ -51,13 +58,13 @@ export class UsersController {
             console.error(err);
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Could not fetch a User' }
+            return { message: 'Could not fetch a User', note: err }
         }
     }
 
     // Retrieve User's Account status [SELF | STAFF]
-    getAccountStatus = async({ set, user, params:{ userId } }:any) => {        
-        const user_id = userId ?? user.id;        
+    getAccountStatus = async({ set, user, params }:any) => {        
+        const user_id = params?.userId ?? user.id;        
 
         try {
             if(!user_id){
@@ -84,12 +91,14 @@ export class UsersController {
         }
     }
 
-    // Retrieve single User Profile [ADMIN]
-    async getProfileByUserId({ set, params:{ userId }, query:{ account } }: any):Promise<{data: Profile, message:string}|{message:string}> {
+    // Retrieve single User Profile [ STAFF | ADMIN | SELF]
+    async getProfileByUserId({ set, user, params, query:{ account } }: any):Promise<{data: Profile, message:string}|{message:string}> {
+        const user_id = params?.userId ?? user.id;
+        
         try {
             const profile = await db.profile.findUnique({
                 where: {
-                    userId: userId
+                    userId: user_id
                 },
                 include: {
                     user: account ? {
@@ -125,10 +134,12 @@ export class UsersController {
     }
 
     // Retrieve currently logged in User's Profile [SELF]
-    async getMyProfile({ set, user, query:{ account } }: any){
+    async getMyProfile({ set, user, params, query:{ account } }: any){
+        const user_id = params?.userId ?? user.id ?? null;
+
         try {
             const profile = await db.profile.findUnique({
-                where: { userId: user.id },
+                where: { userId: user_id },
                 include: {
                     user: account ? {
                         select: {
@@ -229,9 +240,7 @@ export class UsersController {
 
 
     // Create a User Profile, must have a verified email address
-    async createNewProfile({ set, body, user, session, user:{ id, firstname, lastname, email, phone, emailVerified, profileId }, request:{ headers }, cookie:{ lucia_auth }, authJWT }:any) {
-        console.debug("User..: ", user);
-        console.debug("Session..: ", session);
+    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, authJWT, authMethod }:any) => {
 
         try {
             // Checking if ProfileID exists in session/token
@@ -248,24 +257,35 @@ export class UsersController {
 
             // console.log('Checking for pre-existing Profile of similar credentials...');
             // Check DB for profile of same nrc/passport number
-            const profileExists = await db.profile.findFirst({
+            const conflictingProfile = await db.profile.findFirst({
                 where: {
                     documentId: body.documentId,
                     documentType: body.documentIdType
+                },
+                select:{
+                    documentId: true,
+                    documentType: true,
+                    firstname: true,
+                    lastname: true
                 }
             });
-            if(profileExists){
+
+            // Store what values conflict so we can inform User
+            let conflict: string = '';
+            if(conflictingProfile && conflictingProfile?.documentId === body.documentId){
+                conflict = conflictingProfile?.documentId!
+
                 set.status = HttpStatusEnum.HTTP_302_FOUND;
-                return { message: 'A profile already exists with those credentials' };
+                return { message: `That ${conflictingProfile.documentType.toWellFormed()} number is already used`, note: `Similar ${conflictingProfile.documentType.toWellFormed()} exists in the system` };
             }
 
-            // let imageID: { etag: any; versionId: string|null}|null = null;
-            let uploadedImage: {etag:string; versionId:string|null}|null = null;
+            // let uploadedImage: {etag:string; versionId:string|null}|null = null;
+            let uploadedImage: IImageUpload|null = null;
 
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
             if(body.photo){
                 try{
-                    // uploadedImage = await this.usersService.uploadPhoto(body.photo) 
+                    uploadedImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, id, usernameFromEmail(email), false)
                 } catch(err) {
                     console.error(err);
                 }
@@ -285,7 +305,7 @@ export class UsersController {
                 phone: body.phone ?? phone,
                 supportLevel: autoUser?.supportLevel ?? 0,
                 userId: id,
-                photoId: uploadedImage ?? null
+                photoId: uploadedImage?.name ?? null
             }
 
             // Disabled, to keep auto-users list forever
@@ -300,24 +320,15 @@ export class UsersController {
                 return { message: 'Problem processing profile submission.' }
             }
 
-            // Generate access token (JWT) using new profile details
-            const accessToken = await authJWT.sign({
-                id: newProfile.userId,
-                firstname: newProfile.firstname,
-                lastname: newProfile.lastname,
-                roles: newProfile.user?.roles,
-                emailVerified: newProfile.user?.emailVerified,
-                createdAt: newProfile.user?.createdAt,
-                profileId: newProfile.id ?? null
-            });
-
-            const sess = await this.authService.createLuciaSession(user.id, headers, newProfile.id);
-            const sessionCookie = lucia.createSessionCookie(sess.id);
-            await lucia.invalidateSession(lucia_auth.value);
+            // Generate access token using new profile details
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, authJWT, newProfile.user, headers, undefined, undefined);
+            if(authMethod === 'JWT'){
+                set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
+            } else if (authMethod === 'Cookie'){
+                set.headers["Set-Cookie"] = tokenOrCookie.serialize();
+            }
             
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            set.headers["Set-Cookie"] = sessionCookie.serialize();
-            set.headers["Authentication"] = `Bearer ${accessToken}`;
             return { data: newProfile, message: `User Profile successfully created. ${!!uploadedImage ? '' : '(No image)'}` }
         } catch(err:any){
             console.warn(`errrr ${err}`);
@@ -328,23 +339,14 @@ export class UsersController {
             //     set.status = err.errorCode;
             //     return { message: err.message }
             // }
- 
-            // if(err instanceof PrismaClientValidationError){
-            //     set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
-            //     return { message: 'Your submission was not valid' }
-            // }
-            // if(false){ // err instanceof PrismaClientKnownRequestError
-            //     set.status = HttpStatusEnum.HTTP_409_CONFLICT;
-            //     return { message: 'Profile already exists with your ID.' };
-            // }
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Problem processing Profile submission.' }
+            return { message: 'Problem processing Profile submission', note:err }
         }
     }
 
     // Add new Auto-User to list [ADMIN]
-    async addNewAutoEnroller({ set, body}:any){
+    addNewAutoEnroller = async ({ set, body}:any) => {
         const { names, email, phone, roles, supportLevel } = body;
         try {
             const user: AutoEnrol = await db.autoEnrol.create({ 
@@ -376,33 +378,37 @@ export class UsersController {
     /* PUT */
 
     // Updates a User profile
-    async updateUserProfile({ set, params:{ userId }, user:{ id }, body }:any) {
+    updateUserProfile = async({ set, params, user, body }:any) => {
+        const user_id = params?.userId ?? user?.id ?? null;
+        const data: Profile = {...body};
+
         try {
 
-            let imageId: {etag:string; versionId:string|null}|null = null;
+            let uploadedImage: IImageUpload|null = null;
 
-            if(body.photo){
+            if(body?.photo){
                 try {
                     // File service
-                    // imageId = await this.usersService.uploadPhoto(body.photo)
+                    uploadedImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false)
                 } catch(err) {
                     console.error(err);
                 }
             }
 
-
             const profile = await db.profile.update({
-                where: { userId: userId ?? id },
+                where: { userId: user_id },
                 data: {
-                    bio: body.bio,
-                    // photoId: imageId?.etag ?? null,
-                    firstname: body.firstname,
-                    lastname: body.lastname,
-                    gender: userId ? body.gender : undefined,
-                    supportLevel: userId ? body.supportLevel : undefined,
-                    phone: body.phone,
-                    isActive: userId ? body.isActive : undefined,
-                    isComment: userId ? body.isComment : undefined
+                    bio: data.bio,
+                    photoId: uploadedImage?.name ?? null,
+                    firstname: data.firstname,
+                    lastname: data.lastname,
+                    gender: user_id ? data.gender : undefined,
+                    documentId: params?.userId ? data.documentId : undefined,
+                    documentType: params?.userId ? data.documentType : undefined,
+                    supportLevel: params?.userId ? data.supportLevel : undefined,
+                    phone: data.phone,
+                    isActive: params?.userId ? data.isActive : undefined,
+                    isComment: params?.userId ? data.isComment : undefined
                 }
             });
 
@@ -412,18 +418,18 @@ export class UsersController {
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: profile, message: `Successfully updated User Profile. ${imageId ? '' : '(Without photo)'}` };
+            return { data: profile, message: `Successfully updated User Profile${uploadedImage?.name ? '.' : ' (Without photo)'}` };
         } catch (error) {
             console.error(error);
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: `Could not modify User Profile.` }
+            return { message: 'Could not modify User Profile', note: error }
         }
     }
 
     // Deactivates a User account [ADMIN]
-    async deactivateUser ({ user, set, params:{ userId }, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
-        const user_id = userId ?? user.id
+    async deactivateUser ({ user, set, params, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
+        const user_id = params?.userId ?? user.id ?? null;
         const now = new Date();
         const theComment = isComment ?? `Deactivated on ${formatDate(now)}`;
 
@@ -435,6 +441,7 @@ export class UsersController {
                     id: true,
                     firstname: true,
                     lastname: true,
+                    username: true,
                     roles: true,
                     email: true,
                     emailVerified: true,

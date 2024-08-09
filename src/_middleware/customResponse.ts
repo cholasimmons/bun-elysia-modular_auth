@@ -1,6 +1,6 @@
 import Elysia from "elysia";
 
-const customResponse = ({ response, set }:{ response: any, set: any }): any => {
+const customResponse = ({ error, response, set }:{ error:any, response: any, set: any }): any => {
     if (typeof set !== 'object' || set === null) {
         throw new Error('Invalid set object');
     }
@@ -19,10 +19,7 @@ const customResponse = ({ response, set }:{ response: any, set: any }): any => {
     if (isResponseFile(response)) {
         return response;
     }
-    
-    // console.log("r: ",response);
-    // console.log("headers: ",response.headers);
-    
+
     // Global vars to capture response data
     let msg: string|null = null;
     let err: string|null = null;
@@ -31,19 +28,17 @@ const customResponse = ({ response, set }:{ response: any, set: any }): any => {
     let ttl: number|null = null;
     let cnt: number|null = null;
     let pge: number|null = null;
+    let nte: string|null = null;
 
     // Capture "message"  and "data" data from response
     msg = response?.message ?? null;
-    err = response?.error ?? null;
+    err = response?.error ?? (error || error?.code ? error.code : error) ?? null;
     dta = response?.data ?? null;
     cde = response?.code ?? set.status;
     ttl = response?.total;
     cnt = response?.count;
     pge = response?.page;
-    // delete response?.message;
-    // delete response?.error;
-    // delete response?.data;
-    // delete response?.cde
+    nte = response?.note;
 
     const responseObject:any = {
         data: dta,
@@ -53,10 +48,10 @@ const customResponse = ({ response, set }:{ response: any, set: any }): any => {
         success: [200, 201, 202].includes(cde),
         code: cde,
         message: msg ?? (response instanceof Object ? null : String(response)),
-        error: err ?? null
+        error: err ?? nte ?? null
     };
  
-    return isResponseFile(response) ? response : responseObject;
+    return responseObject;
 };
 
 export default customResponse;

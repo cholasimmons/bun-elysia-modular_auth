@@ -11,7 +11,7 @@ import consts from "~config/consts";
 import { GitHubUserResult, GoogleUserResult, OAuth2Providers } from "./auth.models";
 import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
 import { parseCookies, serializeCookie } from "oslo/cookie";
-import { splitWords } from "~utils/utilities";
+import { splitWords, usernameFromEmail } from "~utils/utilities";
 
 export class AuthController {
     private authService: AuthService;
@@ -39,17 +39,11 @@ export class AuthController {
         return isBrowser ? Bun.file('public/register.html') : { message: 'Use POST instead'}
     }
 
-    login = async ({ set, request:{headers}, body: {email, password, rememberme}, cookie:{ cookieName }, authJWT, params }: any) => {
-
+    login = async ({ set, request:{headers}, body: {email, password, rememberme}, authJWT, authMethod }: any) => {
+        console.log('logging in...');
+        
         try {
-            // Check if the Authentication-Method header is present
-            const authMethod = headers.get('Authentication-Method') ?? null;
-
-            if (!authMethod) {                
-                // If the header is missing, return an error response
-                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-                return { success: false, message: "Authentication method not specified", data: null };
-            }
+            // Verification moved to middleware, and derived
 
             this.authService.validateCredentials(email.toLowerCase(), password)
 
@@ -57,7 +51,7 @@ export class AuthController {
             const userExists = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
             if(!userExists){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Invalid credentials' };
+                return { message: 'Invalid User credentials' };
             }
 
             const isMatch = await Bun.password.verify(password, userExists.hashedPassword);
@@ -70,7 +64,7 @@ export class AuthController {
 
             if(userExists.isActive === false || !userExists.isActive){
                 set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-                return { message: `User access is revoked.\nReason: ${userExists.isComment ?? 'N/A'}` };
+                return { message: 'User access is revoked.', data: userExists.isComment ?? "N/A" };
             }
 
             const sessions = await lucia.getUserSessions(userExists.id);
@@ -83,7 +77,7 @@ export class AuthController {
             
 
             const payload = {
-                names: userExists.firstname + ' ' + userExists.lastname,
+                names: `${userExists.firstname} ${userExists.lastname}`,
                 email: userExists.email,
                 username: userExists.email,
                 phone: userExists.phone,
@@ -95,25 +89,15 @@ export class AuthController {
                 sessions: sessions.length
             }
 
-            // Generate access token (JWT) using logged-in user's details
-            const accessToken = await authJWT.sign({
-                id: userExists.id,
-                firstname: userExists.firstname,
-                lastname: userExists.lastname,
-                username: userExists.email,
-                roles: userExists.roles,
-                emailVerified: userExists.emailVerified,
-                createdAt: userExists.createdAt,
-                profileId: userExists.profile?.id ?? null
-            });
-           
-            set.status = HttpStatusEnum.HTTP_200_OK;
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, authJWT, userExists, headers, undefined, rememberme);
 
-            const {id} = await this.authService.createLuciaSession(userExists.id, headers, undefined, rememberme);
-            const sessionCookie = lucia.createSessionCookie(id);
-            // sessionCookie.value = accessToken;
-            set.headers["Authorization"] = `Bearer ${accessToken}`;
-            set.headers["Set-Cookie"] = sessionCookie.serialize();
+            if(authMethod === 'JWT'){
+                set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
+            } else if (authMethod === 'Cookie'){
+                set.headers["Set-Cookie"] = tokenOrCookie.serialize();
+            }
+            
+            set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: payload, message: 'Successfully logged in' };
         } catch (e:any) {
             console.error(e);
@@ -165,7 +149,7 @@ export class AuthController {
                 id: uid,
                 firstname,
                 lastname,
-                username: autoUser?.email ?? email,
+                username: usernameFromEmail(autoUser?.email ?? email),
                 email: autoUser?.email ?? email,
                 phone: (autoUser?.phone ?? phone) ?? null,
                 emailVerified: false,
@@ -176,20 +160,28 @@ export class AuthController {
 
             console.log("Created User ", result.firstname, autoUser ? '. Auto enrolled user: '+autoUser : 'No auto-enrol');
 
-            // const verificationCode = await this.authService.generateEmailVerificationCode(result.id, email);
-	        // await this.authService.sendEmailVerificationCode(email, verificationCode);
-
-            if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
-                await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
+            if(Bun.env.NODE_ENV === 'production'){
+                const verificationCode = await this.authService.generateEmailVerificationCode(result.id, email);
+	            this.authService.sendEmailVerificationCode(email, verificationCode)
+                    .then(() => {
+                        console.debug(`Verification code sent to ${email}`);
+                    })
+                    .catch((e) => {
+                        console.debug(`Unable to send verification code to ${email} ${e}`);
+                    });
             }
 
-            const session = await this.authService.createLuciaSession(result.id, headers);
-            const sessionCookie = lucia.createSessionCookie(session.id);
+            // if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
+            //     await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
+            // }
+
+            // const session = await this.authService.createLuciaSession(result.id, headers);
+            // const sessionCookie = lucia.createSessionCookie(session.id);
 
             const sanitizedUser = this.authService.sanitizeUserObject(result);
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            set.headers["Set-Cookie"] = sessionCookie.serialize();
+            // set.headers["Set-Cookie"] = sessionCookie.serialize();
             return { data: sanitizedUser, message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})` };
         } catch (e) {
             console.error(e);

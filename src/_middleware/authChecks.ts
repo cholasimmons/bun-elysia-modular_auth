@@ -5,17 +5,16 @@ import { db } from "~config/prisma";
 
 
 // Dynamically check between admin-console and client-app
-export const checkAuth = async ({ set, session, user, request:{headers}, cookie:{ lucia_auth }, authJWT }: any)  => {
-  
+export const checkAuth = async ({ set, session, user, request:{headers}, authJWT, authMethod }: any)  => {
   // Check if the Authentication-Method header is present
-  const authMethod = headers.get('Authentication-Method') ?? null;
+  // const authMethod = headers.get('Authentication-Method') ?? null;
 
   if (!authMethod) {
     console.debug('Authentication method not specified.', authMethod);
     
     // If the header is missing, return an error response
     set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-    return { success: false, message: "Authentication method not specified", data: null };
+    return { success: false, message: "Authentication method not specified", data: null, note: 'Required Authentication-Method' };
   }
 
   // Determine which authentication method to use based on the header value
@@ -27,7 +26,7 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
       console.warn("No session data present. Are you logged in?");
       
       set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
-      return { message: 'Unauthorized Access' };
+      return { message: 'Unauthorized Access', note: 'No cookie session detected on the server' };
     }
 
   } else if (authMethod === 'JWT') {
@@ -41,7 +40,7 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
       return {
         success: false,
         message: "Unauthorized. Access token not present",
-        data: null,
+        data: null, note: 'No authorization token detected on the server'
       };
     }
 
@@ -56,7 +55,7 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
   } else {
       // If an unsupported authentication method is specified, return an error response
       set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-      return { success: false, message: `Unsupported authentication method. ${authMethod}`, data: null };
+      return { success: false, message: 'Unsupported authentication method', note: `Unsupported authentication method: ${authMethod}` };
   }
 }
 
@@ -74,37 +73,39 @@ export const checkEmailVerified = async ({ set, user }:any) => {
 }
 
 
-
 // Check user roles for Admin
 export const checkIsAdmin = async ({ set, user }:any) => {
-  if(!user?.roles.some((role:any) => [Role.ADMIN].includes(role))) {
+  const roles = user?.roles;
+
+  if(!roles.some((role:any) => [Role.ADMIN].includes(role))) {
     set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return { message: 'Access denied. Insufficient privileges' };
+    return { message: 'Access denied. Insufficient privileges', note: 'Admin role required' };
   }
 }
 
 // Check user roles for "Staff" roles"
 export const checkIsStaff = async ({ set, user }:any) => {
-  if(!user?.roles.some((role:any) => [Role.SUPERVISOR, Role.ADMIN, Role.SUPPORT].includes(role))) {
+  const roles = user?.roles;
+
+  if(!roles.some((role:any) => [Role.SUPERVISOR, Role.ADMIN, Role.SUPPORT].includes(role))) {
     set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return { message: 'Access denied. Insufficient privileges' };
+    return { message: 'Access denied. Insufficient privileges', note: 'Staff role required' };
   }
 }
 
 // checks if current User has an active profile
 export const checkForProfile =  async ({ set, user }: any) => {
-  // console.log(user);
-  // console.log(session);
+  const { isActive, profileId, profileIsActive } = user;
   
-  if (!user || !user.isActive) {
+  if (!user || !isActive) {
     set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return { message: 'Active User Account & Profile required' };
+    return { message: 'Active User Account & Profile required', note: 'User Account is deactivated' };
   }
 
-  if(!user.profileId){
+  if(!profileId){
     set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    const reason = !user.profileId ? 'User Profile required' : !user.profileIsActive ? 'Active User Profile required' : null
-    return { message: `Access Denied. ${reason}` };
+    const reason = !profileId ? 'User Profile required' : !profileIsActive ? 'Active User Profile required' : null
+    return { message: `Access Denied. ${reason}`, note: 'User Profile doesn\'t exist or is deactivated' };
   }
 }
 

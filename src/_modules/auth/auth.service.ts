@@ -101,6 +101,29 @@ class AuthService {
         })
     }
 
+    // Encodes user data and creates auth session via Lucia Auth v3
+    createDynamicSession = async (authMethod:'JWT'|'Cookie', authJWT:any, user:any, headers: Headers, profileId?: string, rememberMe:boolean = false) => {
+        if(authMethod === 'JWT'){
+            // Generate access token (JWT) using logged-in user's details
+            const accessToken = await authJWT.sign({
+                id: user.id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                username: user.username,
+                roles: user.roles,
+                emailVerified: user.emailVerified,
+                createdAt: user.createdAt,
+                profileId: user.profile?.id ?? null
+            });
+            await this.createLuciaSession(user.id, headers, undefined, rememberMe);
+            return accessToken;
+        } else if (authMethod === 'Cookie'){
+            const session = await this.createLuciaSession(user.id, headers, undefined, rememberMe);
+            const sessionCookie = lucia.createSessionCookie(session.id);
+            return sessionCookie;
+        }
+    }
+
     async generateEmailVerificationCode(userId: string, email: string): Promise<string> {
         console.log(`Generating ${consts.verificationCode.length}-digit Email Verification Code...`);
         

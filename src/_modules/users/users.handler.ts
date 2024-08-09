@@ -2,13 +2,13 @@ import Elysia, { t } from "elysia";
 import { UsersController, UsersService } from ".";
 import { AuthService } from "../auth";
 import { checkAuth, checkCookieAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
-import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, UpdateProfileBodyDTO, userQueriesDTO } from "./users.model";
+import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, updateProfileBodyDTO, userQueriesDTO } from "./users.model";
 import { swaggerDetails } from "~utils/response_helper";
 import { paginationOptions } from "~modules/root/root.models";
 
 const usersService = new UsersService();
 const authService = new AuthService();
-const users = new UsersController(usersService, authService);
+const users = new UsersController();
 
 export const UsersHandler = new Elysia({
     prefix: '/users',
@@ -39,7 +39,10 @@ export const UsersHandler = new Elysia({
     .get('/user', users.getAccountById, {
         query: t.Object({ ...userQueriesDTO }),
         response: {
-            200: t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
+            200: t.Union([
+                t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
+                t.Undefined()
+            ]),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not search for a User' }) })
         },
@@ -177,13 +180,13 @@ export const UsersHandler = new Elysia({
     })
 
 
-    /* PUT */
+    /* PATCH */
 
 
     // Update User Profile [SELF]
     .patch('/profile', users.updateUserProfile, {
         query: t.Object({ ...profileQueriesDTO }),
-        body: UpdateProfileBodyDTO,
+        body: t.Object({...updateProfileBodyDTO}),
         response: {
             200: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),
             404: t.Object({ message: t.String({ default: 'Could not update Profile' })}),
@@ -197,7 +200,7 @@ export const UsersHandler = new Elysia({
         beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
         query: t.Object({ ...profileQueriesDTO }),
-        body: UpdateProfileBodyDTO,
+        body: t.Object({...updateProfileBodyDTO}),
         response: {
             200: t.Union([
                 t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),

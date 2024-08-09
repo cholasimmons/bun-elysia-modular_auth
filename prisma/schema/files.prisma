@@ -1,0 +1,38 @@
+// This is a separate Prisma schema file,
+
+// File Record Management
+
+model FileUpload {
+  id              String        @id @default(uuid()) @unique
+  origname        String        @map("orig_file_name")
+  name            String        @map("file_name")
+  type            String?       @map("mime_type")
+  size            Int           @map("file_size")
+  // metadata        String?
+  bucket          String
+  path            String        @map("file_path")
+  userProfileId   String        @map("user_profile_id")
+  status          FileStatus
+  isPublic        Boolean       @default(true)
+  comment         String?
+
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt() @map("updated_at")
+  
+  @@index([name, bucket, userProfileId, createdAt(sort: Asc)])
+  @@map("file_uploads")
+  @@schema("files")
+}
+
+
+
+// ENUMS
+
+enum FileStatus {
+  UPLOAD_FAILED
+  UPLOADED
+  MISSING_IN_STORAGE
+  ORPHANED
+  @@schema("files")
+}
