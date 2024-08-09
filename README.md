@@ -2,6 +2,9 @@
 
 ## [Test It Here](https://hello.api.simmons.studio/v1)
 
+### [Awesome REST Client](https://insomnia.rest/download)
+#### [Android Mobile API Tester](https://play.google.com/store/apps/details?id=apitester.org&hl=en)
+
 ### Features
 - Lucia Auth v3
 - Prisma ORM (PostgreSQL integration)
@@ -17,6 +20,7 @@
 - custom response model
 - modular design for easy expansion
 - Data Access Layer methodology
+- S3 File Storage service
 
 
 

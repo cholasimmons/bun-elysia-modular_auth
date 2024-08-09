@@ -16,8 +16,8 @@ const consts = {
         passwordMinLength: 8,
     },
     images:{
-        main:{ width: 1280, height: 1280, quality: 78},
-        thumbnail:{ width: 420, height: 420, quality: 48 },
+        main:{ width: 1280, height: 1280, quality: 84},
+        thumbnail:{ width: 320, height: 320, quality: 55 },
         blurAmount: 9
     },
     websocket: {

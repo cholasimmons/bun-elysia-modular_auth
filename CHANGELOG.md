@@ -17,7 +17,7 @@
 
 ### Removed
 
-- Problematic else clause in `authCheck` that caused the availability of a JWT token to overthrow the authMethod
+- Problematic else clause in `authCheck` that caused the availability of an Authentication header to overthrow the authMethod
 
 
 
