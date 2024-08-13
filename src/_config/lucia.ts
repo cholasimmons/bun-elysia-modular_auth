@@ -8,7 +8,7 @@ import consts from "./consts";
 
 export const lucia = new Lucia(adapter, {
     sessionCookie: {
-        name: consts.auth.name,
+        name: 'lucia_auth_cookie',
         expires: true, // session cookies have very long lifespan (2 years)
         attributes: {
             secure: Bun.env.NODE_ENV === "production",
@@ -21,11 +21,14 @@ export const lucia = new Lucia(adapter, {
 		return {
 			ipCountry: attributes.ipCountry ?? 'Unknown',
 			os: attributes.os ?? 'Unknown',
-			host: attributes.host ?? 'Unknown',
-			userAgentHash: attributes.userAgentHash,
+			ip: attributes.ip,
+			// host: attributes.host ?? 'Unknown',
+			// userAgentHash: attributes.userAgentHash,
 			fresh: attributes.fresh,
             activeExpires: attributes.activeExpires,
-            expiresAt: attributes.expiresAt
+            expiresAt: attributes.expiresAt,
+            deviceIdentifier: attributes.deviceIdentifier,
+            method: attributes.method
 		};
 	},
     getUserAttributes: (attributes) => {
@@ -59,12 +62,15 @@ declare module "lucia" {
     }
     interface DatabaseSessionAttributes {
 		ipCountry: string|null;
-        os: string|null,
-        host: string|null,
-        userAgentHash: string|null,
-        activeExpires: number,
-        fresh: boolean,
-        expiresAt: Date
+        os: string|null;
+        ip: string;
+        // host: string|null,
+        // userAgentHash: string|null,
+        activeExpires: number;
+        fresh: boolean;
+        expiresAt: Date;
+        deviceIdentifier: string;
+        method: string;
 	}
 
     interface DatabaseUserAttributes {
@@ -74,6 +80,7 @@ declare module "lucia" {
         isActive: boolean;
         firstname: string;
         lastname: string;
+        username: string;
         profileId: string|null;
     }
 

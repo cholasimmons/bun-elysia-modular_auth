@@ -1,12 +1,12 @@
 # Modular Elysia JS app | Authentication template (Bun runtime)
 
-## [Test It Here](https://hello.api.simmons.studio/v1)
+## [Test It Here](https://hello.simmons.studio/api/v1)
 
 ### [Awesome REST Client](https://insomnia.rest/download)
 #### [Android Mobile API Tester](https://play.google.com/store/apps/details?id=apitester.org&hl=en)
 
 ### Features
-- Lucia Auth v3
+- Lucia Auth v3 (including device identification for session management)
 - Prisma ORM (PostgreSQL integration)
 - Schema Validation examples
 - Helmet, CORS for added security
@@ -21,6 +21,7 @@
 - modular design for easy expansion
 - Data Access Layer methodology
 - S3 File Storage service
+- In-memory cache for rapid data retrieval
 
 
 

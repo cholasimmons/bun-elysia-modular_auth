@@ -1,4 +1,6 @@
 import consts from "~config/consts";
+import { lucia } from "~config/lucia";
+import { db } from "~config/prisma";
 
 export function formatDate(date: Date): string {
     const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
@@ -78,4 +80,16 @@ export function monthsToDate(months: number) {
     }
 
     return newDate;
+}
+
+
+// Auth
+
+
+/*** Generate a unique identifier for a device (based on headers) */
+export const getDeviceIdentifier = (headers: Headers): string => {
+    // Example: Hash of User-Agent + IP or any other unique identifier
+    const userAgent = headers.get('user-agent') || 'unknown';
+    const ip = headers.get('x-forwarded-for') || headers.get('remote-addr') || 'unknown';
+    return Buffer.from(userAgent + ip).toString('hex');
 }

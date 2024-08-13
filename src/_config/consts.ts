@@ -11,9 +11,15 @@ const consts = {
     },
     auth: {
         name: 'lucia_auth',
-        jwtMaxAge: 7,
-        maxSessions: 2,
+        jwtMinAge: 1, // days
+        jwtMaxAge: 7, // days
+        maxSessions: 3,
         passwordMinLength: 8,
+    },
+    phone:{
+        countryCode: 26,
+        minLength: 9,
+        maxLength: 11
     },
     images:{
         main:{ width: 1280, height: 1280, quality: 84},

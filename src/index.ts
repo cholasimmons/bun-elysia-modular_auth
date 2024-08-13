@@ -43,15 +43,17 @@ try {
       name: consts.server.name,
       prefix: `/v${consts.api.version}`,
       websocket: { idleTimeout: consts.websocket.timeout },
-      // detail: { description: `${consts.server.name} Server API` }
+      detail: { description: `${consts.server.name} Server API` }
     })
 
     // State
-    .state('maintenanceMode', false)
-    .state('timezone', Bun.env.TZ || 'Europe/London')
+    .state('maintenanceMode', Bun.env.MAINTENANCE_MODE === 'true' || false)
+    .state('timezone', String(Bun.env.TZ || 'Europe/London'))
+
 
     /* Extensions */
 
+    
     // Fancy logs
     .use(Logestic.preset('fancy'))
 
@@ -92,12 +94,12 @@ try {
     }))
 
     // Cookie global handler
-    .use(cookie({ secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
+    // .use(cookie({ secure: Bun.env.NODE_ENV === 'production', httpOnly: true, sameSite: 'strict'}))
 
     // JWT
     .use(
       jwt({
-          name: 'authJWT',
+          name: 'elysia_jwt',
           secret: Bun.env.JWSCRT!,
           exp: `${consts.auth.jwtMaxAge}d`
       })

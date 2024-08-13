@@ -3,6 +3,8 @@ import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
+import { cache, redisGet, redisSet } from "~config/redis";
+import { ProfileWithPartialUser } from "./users.model";
 
 
 
@@ -11,7 +13,13 @@ export class UsersService {
 
     async getAll(isActive?: boolean, profiles?: boolean){
         try {
-            return db.user.findMany({
+            let allUsers = await redisGet<Partial<User>[]>(`users`);
+
+            if(allUsers){
+                return allUsers;
+            }
+            
+            const users = await db.user.findMany({
                 where: { isActive: isActive ?? undefined },
                 select: {
                     id: true,
@@ -28,6 +36,11 @@ export class UsersService {
                     createdAt: true
                 }
             });
+
+            await redisSet('users', users);
+
+            return users;
+            
         } catch (error) {
             console.error("Could not get all users. ",error);
             throw `Unable to retrieve ${isActive ? 'active' : 'deactivated'} Users`;
@@ -38,17 +51,23 @@ export class UsersService {
     // Returns a unique User from the DB with particular ID string
     async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<Partial<User>> {
         try {
-            const user: Partial<User>|null = await db.user.findUnique({
-                where: { id: userId },
-                include: {
-                    profile: opts?.profile ?? false,
-                    authSession: false,
-                }
-            });
+            let user = await redisGet<Partial<User>>(`user:${userId}`);
 
-            if(!user) throw new NotFoundError('Could not find user with that ID');
+            if(!user){
+                user = await db.user.findUnique({
+                    where: { id: userId },
+                    include: {
+                        profile: opts?.profile ?? false,
+                        authSession: false,
+                    }
+                });
 
-            delete user.hashedPassword;
+                if(!user) throw new NotFoundError('Could not find user with that ID');
+
+                delete user.hashedPassword;
+
+                await redisSet(`user:${userId}`, user);
+            }
 
             return user;
         } catch (error) {
@@ -63,7 +82,7 @@ export class UsersService {
         try {
             // console.log("Received User Profile data: ",data);
             
-            const freshUser:any = await db.user.update({
+            let freshUser:any = await db.user.update({
                 where:{
                     id: userId
                 },
@@ -77,6 +96,7 @@ export class UsersService {
                 include: { profile: true }
             })
 
+            delete freshUser.hashedPassword;
 
             if(!freshUser.profileId){
                 throw 'Could not update User with new User Profile'
@@ -91,11 +111,15 @@ export class UsersService {
                     lastname: freshUser.lastname,
                     username: freshUser.username,
                     roles: freshUser.roles,
+                    email: freshUser.email,
                     emailVerified: freshUser.emailVerified,
                     createdAt: freshUser.createdAt,
+                    updatedAt: freshUser.updatedAt,
                     profileId: freshUser.profile.id
                 } 
             }
+
+            await redisSet(`profile:user:${freshUser.id}`, freshUser.profile, 7200)
 
             return returnSafeUser as Profile;
         } catch(e) {
@@ -154,19 +178,36 @@ export class UsersService {
         }
     }
     
-    async getProfileById(userId:string, opts?:{
-        ownedProperty:boolean, managedProperty:boolean, wallet:boolean, usedCoupons:boolean, reviews:boolean, user:boolean
-    }){
+    async getProfileByUserId(userId:string, opts?:{ account:boolean }){
         try {
-            const profile = await db.profile.findUnique({ where: {
-                userId: userId
-            }, include: {
-                user: opts?.user ? true : false,
-            }})
+            let cachedProfile = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);
 
-            if(!profile) throw new NotFoundError(`Profile for "${userId}" not found`);
+            if(!cachedProfile){
+                cachedProfile = await db.profile.findUnique({ where: { userId: userId }, include: {
+                    user: opts?.account ? {
+                        select: {
+                            id: true,
+                            firstname: true,
+                            lastname: true,
+                            username: true,
+                            roles: true,
+                            email: true,
+                            emailVerified: true,
+                            phone: true,
+                            isActive: true,
+                            isComment: true,
+                            createdAt: true,
+                            updatedAt: true,
+                        }
+                    } : false
+                }});
 
-            return profile;
+                if(!cachedProfile) throw new NotFoundError(`Profile for User: ${userId} unavailable in database`);
+
+                await redisSet(`profile:user:${userId}`, cachedProfile)
+            }            
+
+            return cachedProfile;
         } catch (error) {
             throw error
         }

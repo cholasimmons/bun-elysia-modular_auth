@@ -1,14 +1,13 @@
 import { Role } from "@prisma/client";
 import Elysia from "elysia";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
+import { lucia } from "~config/lucia";
 import { db } from "~config/prisma";
 
 
 // Dynamically check between admin-console and client-app
-export const checkAuth = async ({ set, session, user, request:{headers}, authJWT, authMethod }: any)  => {
-  // Check if the Authentication-Method header is present
-  // const authMethod = headers.get('Authentication-Method') ?? null;
-
+export const checkAuth = async ({ set, session, user, request:{headers}, authMethod, elysia_jwt }: any)  => {
+ 
   if (!authMethod) {
     console.debug('Authentication method not specified.', authMethod);
     
@@ -36,20 +35,23 @@ export const checkAuth = async ({ set, session, user, request:{headers}, authJWT
     const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
     if(!token){
       set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
-      console.debug("No JWT token");
+
       return {
         success: false,
-        message: "Unauthorized. Access token not present",
+        message: "Unauthorized Access. Token not present",
         data: null, note: 'No authorization token detected on the server'
       };
     }
 
-    if (!user.id) {
+    const tokenUser = await elysia_jwt.verify(token);
+    
+    if (!tokenUser?.id) {
       set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
       return {
         success: false,
         message: "Unauthorized. Access token not verified",
         data: null,
+        note: 'User not identified'
       };
     }
   } else {
@@ -97,14 +99,14 @@ export const checkIsStaff = async ({ set, user }:any) => {
 export const checkForProfile =  async ({ set, user }: any) => {
   const { isActive, profileId, profileIsActive } = user;
   
-  if (!user || !isActive) {
-    set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return { message: 'Active User Account & Profile required', note: 'User Account is deactivated' };
-  }
+  // if (!user || !isActive) {
+  //   set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+  //   return { message: 'Active User Account & Profile required', note: 'User Account is deactivated' };
+  // }
 
   if(!profileId){
     set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    const reason = !profileId ? 'User Profile required' : !profileIsActive ? 'Active User Profile required' : null
+    const reason = 'User Profile required';
     return { message: `Access Denied. ${reason}`, note: 'User Profile doesn\'t exist or is deactivated' };
   }
 }
@@ -113,7 +115,7 @@ export const checkForProfile =  async ({ set, user }: any) => {
 
 
 // this checks Cookie  (Admin Console), if not supplied the request will be rejected!
-export const checkCookieAuth = async ({ set, session, request:{headers}, cookie:{ lucia_auth } }: any)  => {
+const checkCookieAuth = async ({ set, session, request:{headers}, cookie:{ lucia_auth } }: any)  => {
   try {
     if(!session){
       console.warn("No session data present. Are you logged in?");
@@ -128,8 +130,8 @@ export const checkCookieAuth = async ({ set, session, request:{headers}, cookie:
 }
 
 // this checks JWT token (Frontend client), if not supplied the request will be rejected!
-export const checkJWTAuth = (app: Elysia) => 
-  app.derive(async ({ authJWT, set, request:{ headers } }:any) => {
+const checkJWTAuth = (app: Elysia) => 
+  app.derive(async ({ elysia_jwt, set, request:{ headers } }:any) => {
 
     const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
     if(!token){
@@ -143,8 +145,8 @@ export const checkJWTAuth = (app: Elysia) =>
     }
 
 
-    const { userId } = await authJWT.verify(token);
-    if (!userId) {
+    const { id } = await elysia_jwt.verify(token);
+    if (!id) {
       set.status = 401;
       console.debug("No user.userId in JWT");
       return {
@@ -156,7 +158,7 @@ export const checkJWTAuth = (app: Elysia) =>
 
     const user = await db.user.findUnique({
       where: {
-        id: userId,
+        id: id,
       },
     });
     if (!user) {

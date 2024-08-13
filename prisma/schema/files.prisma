@@ -12,8 +12,8 @@ model FileUpload {
   bucket          String
   path            String        @map("file_path")
   userProfileId   String        @map("user_profile_id")
-  status          FileStatus
-  isPublic        Boolean       @default(true)
+  status          FileStatus    @default(UPLOAD_FAILED)
+  isPublic        Boolean       @default(false)
   comment         String?
 
   isActive        Boolean       @default(true) @map("is_active")

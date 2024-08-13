@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.4.1] - 11-08-2024
+## [0.4.1] - 14-08-2024
 
 ### Added
 
@@ -9,11 +9,21 @@
 - included `mime` package and `files` module for file related endpoints
 - included `sharp` image processing library for image manipulation, including overlaying of watermarks
 - added `images{}` to the `config/consts.ts` file to manage image resolution and quality, fallbacks are hardcoded incase of missing values (also available in .env file)
+- Included Redis cache for quicker retrieval of commonly used data
+- deviceIdentity now part of login process and sessions
+- Session now tracks deviceIdentity (hashed) and IP address of User
 
 ### Changed
 
 - "JWTNAME" from `.env` file removed, JWT token name now hardcoded into system
-- Login return data is based on `Authentication-Method` header, 'JWT' for mobile, 'Cookie' for Browser
+- cookie name and jwt name now hardcoded into system for consistency
+- Login auth is based on `Authentication-Method` header, 'JWT' for mobile app, 'Cookie' for Browser
+- `maintenanceMode` store now depends on environment variable for system availability, defaults to false
+
+### Fixed
+
+- Registering a new User now returns sanitized User object in "data" field of response
+- JWT Users are now properly authCheckt
 
 ### Removed
 

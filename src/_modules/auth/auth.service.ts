@@ -7,6 +7,9 @@ import { db } from "~config/prisma";
 import { lucia } from "~config/lucia";
 import { Resend } from "resend";
 import consts from "~config/consts";
+import { UserWithProfile } from "~modules/users/users.model";
+import { getDeviceIdentifier } from "~utils/utilities";
+import { cache } from "~config/redis";
 
 
 // const nextYear = today.getUTCFullYear() + 1;
@@ -15,15 +18,15 @@ import consts from "~config/consts";
 class AuthService {
     private static instance: AuthService;
 
-    private today: Date;
+    // private today?: Date;
     // today.setHours(0, 0, 0, 0); // Set time to midnight to represent the start of today
-    private oneDayAgo: Date;
-    private resend = new Resend(Bun.env.RESEND_API_KEY);
+    // private oneDayAgo?: Date;
+    private resend: Resend;
 
     constructor(){
-        this.today = this.oneDayAgo = new Date();
-        this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
-        this.resend = new Resend(Bun.env.RESEND_API_KEY ?? '1234');
+        // this.today = this.oneDayAgo = new Date();
+        // this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
+        this.resend = new Resend(String(Bun.env.RESEND_API_KEY) || 're_12345');
     }
 
     public static getInstance(): AuthService {
@@ -83,45 +86,102 @@ class AuthService {
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe:boolean = false):Promise<Session>{
-        const userAgent = headers.get('user-agent');
-        const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
+    async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe?:boolean):Promise<Session>{
+        // const userAgent = headers.get('user-agent');
+        // const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
 
-        const os = headers.get('os');
-        const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
+        const ip = headers.get('x-forwarded-for') || headers.get('remote-addr') || headers.get('host') || 'Unknown';
+        // const ipHash = Buffer.from(ip).toString('hex');
+
+        const os = headers.get('os') ?? 'Unknown';
+        // const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
+        const authMethod = headers.get('Authentication-Method') ?? "Unknown";
+        const ipCountry = headers.get('ipCountry') ?? "Unknown";
+
+        const deviceIdentifier = getDeviceIdentifier(headers);
 
         return lucia.createSession(userId, {
-            ipCountry: headers.get('ipCountry') ?? 'Unknown',
-            os: osHash,
-            host: headers.get('host') ?? 'Unknown',
-            userAgentHash: userAgentHash,
+            ipCountry: ipCountry,
+            os: os,
+            ip: ip,
+            // host: headers.get('host') ?? 'Unknown',
+            // userAgentHash: userAgentHash,
             fresh: true,
             expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
-            activeExpires: Date.now() + ( 1000 * 60 * (rememberMe ? 60 : 1))
+            activeExpires: Date.now() + ( 1000 * 60 * (rememberMe ? 60 : 1)),
+            deviceIdentifier: deviceIdentifier,
+            method: authMethod
         })
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    createDynamicSession = async (authMethod:'JWT'|'Cookie', authJWT:any, user:any, headers: Headers, profileId?: string, rememberMe:boolean = false) => {
-        if(authMethod === 'JWT'){
-            // Generate access token (JWT) using logged-in user's details
-            const accessToken = await authJWT.sign({
-                id: user.id,
-                firstname: user.firstname,
-                lastname: user.lastname,
-                username: user.username,
-                roles: user.roles,
-                emailVerified: user.emailVerified,
-                createdAt: user.createdAt,
-                profileId: user.profile?.id ?? null
-            });
-            await this.createLuciaSession(user.id, headers, undefined, rememberMe);
-            return accessToken;
-        } else if (authMethod === 'Cookie'){
-            const session = await this.createLuciaSession(user.id, headers, undefined, rememberMe);
-            const sessionCookie = lucia.createSessionCookie(session.id);
-            return sessionCookie;
+    createDynamicSession = async (authMethod:'JWT'|'Cookie', elysia_jwt:any, user:UserWithProfile, headers: Headers, rememberMe?:boolean) => {
+        console.debug(`${user.email} attempting log in via ${authMethod}`);
+
+        try {
+            if(authMethod === 'JWT'){
+                const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
+
+                // Generate access token (JWT) using logged-in user's details
+                const accessToken = await elysia_jwt.sign({
+                    id: user.id,
+                    firstname: user.firstname,
+                    lastname: user.lastname,
+                    username: user.username,
+                    roles: user.roles,
+                    emailVerified: user.emailVerified,
+                    createdAt: user.createdAt,
+                    profileId: user.profile?.id ?? null
+                }, { expiresIn:jwtExpiresIn});
+                await this.createLuciaSession(user.id, headers, user.profile?.id, rememberMe);
+                return accessToken;
+            } else if (authMethod === 'Cookie'){
+
+                // Generate a unique identifier for the device (e.g., based on headers or other data)
+                const deviceIdentifier = getDeviceIdentifier(headers);
+
+                const sameDeviceSession = await db.session.findFirst({
+                    where: {
+                        userId: user.id,
+                        deviceIdentifier: deviceIdentifier,
+                    }
+                });
+    
+                // Invalidate any existing session for this user on the same device
+                if (sameDeviceSession) {
+                    await lucia.invalidateSession(sameDeviceSession.id);
+                    // elysia_jwt.sign(null);
+                }
+
+                const {id} = await this.createLuciaSession(user.id, headers, user.profile?.id, rememberMe);
+                const sessionCookie = lucia.createSessionCookie(id);
+                return sessionCookie;
+            }
+        } catch (error) {
+            console.error(error);
+            
+            throw "Could not create dynamic session";
         }
+    }
+
+    async createJWTs(payload: any, elysia_jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
+        const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
+
+        const accessToken = await elysia_jwt.sign(payload, { expiresIn:jwtExpiresIn});
+    
+        const refreshToken = await elysia_jwt.sign(payload, { expiresIn: '1d' });
+    
+        return { accessToken, refreshToken };
+    }
+
+    refreshTokens = async (refreshToken: string, elysia_jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> => {
+        // Validate the refresh token
+        const payload = await elysia_jwt.verify(refreshToken);
+        if (!payload) throw new Error('Invalid refresh token');
+    
+        // Issue new tokens
+        const newTokens = await this.createJWTs(payload, elysia_jwt, rememberMe);
+        return newTokens;
     }
 
     async generateEmailVerificationCode(userId: string, email: string): Promise<string> {
@@ -246,8 +306,11 @@ class AuthService {
     }
 
     async clearExpiredEmailVerificationCodes(){
+        let oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
         return db.emailVerificationCode.deleteMany({
-            where: { expiresAt: { lte: this.oneDayAgo } }
+            where: { expiresAt: { lte: oneDayAgo } }
         });
     }
 }

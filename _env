@@ -1,5 +1,6 @@
 #ENV
 NODE_ENV=development
+MAINTENANCE_MODE=false
 PORT=3000
 HOST=localhost
 JWSCRT=asecurepassw0rd
@@ -38,6 +39,14 @@ THUMBNAIL_QUALITY=48
 # PGAdmin
 PGADMIN_DEFAULT_EMAIL=root@root.com
 PGADMIN_DEFAULT_PASSWORD="root"
+
+
+# Redis Cache
+REDIS_HOST=cache
+REDIS_PORT=6379
+REDIS_PASSWORD=my_password
+ALLOW_EMPTY_PASSWORD=yes
+REDIS_DATABASES=8
 
 
 # OAuth 2.0 API

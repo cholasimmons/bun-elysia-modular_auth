@@ -2,7 +2,7 @@
 import { verifyRequestOrigin } from "oslo/request";
 import { lucia } from "~config/lucia";
 
-export const sessionDerive = async ({ request:{ headers, method }, cookie }:any) => {
+export const sessionDerive = async ({ request:{ headers, method }, cookie, elysia_jwt }:any) => {
     // console.debug("Method: ", method);
     // console.debug("Headers: ", headers);
     
@@ -70,13 +70,12 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie }:any)
             return { user: null, session: null, authMethod };
         }
     
-        const sessionId = lucia.readBearerToken(token ?? "");
-        if(!sessionId){
+        const tokenUser = await elysia_jwt.verify(token);
+        
+        if(!tokenUser){
             return { user: null, session: null, authMethod };
         }
-
-        const { session, user } = await lucia.validateSession(sessionId);
         
-        return { user, session, authMethod };
+        return { user:tokenUser, session:null, authMethod };
     }   
 }

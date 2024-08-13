@@ -25,6 +25,6 @@ export interface IImageUpload {
 }
 
 export enum BucketType {
-    PRODUCT="PRODUCTS",
-    USER="USERS"
+    PRODUCT="products",
+    USER="users"
 }

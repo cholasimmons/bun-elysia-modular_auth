@@ -12,6 +12,7 @@ import { GitHubUserResult, GoogleUserResult, OAuth2Providers } from "./auth.mode
 import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
 import { parseCookies, serializeCookie } from "oslo/cookie";
 import { splitWords, usernameFromEmail } from "~utils/utilities";
+import { blacklistToken, cache, redisSet } from "~config/redis";
 
 export class AuthController {
     private authService: AuthService;
@@ -39,8 +40,8 @@ export class AuthController {
         return isBrowser ? Bun.file('public/register.html') : { message: 'Use POST instead'}
     }
 
-    login = async ({ set, request:{headers}, body: {email, password, rememberme}, authJWT, authMethod }: any) => {
-        console.log('logging in...');
+    login = async ({ set, request:{headers}, body, elysia_jwt, authMethod, cookie:{lucia_auth_cookie}, session }: any) => {
+        const {email, password, rememberme} = body;
         
         try {
             // Verification moved to middleware, and derived
@@ -48,7 +49,7 @@ export class AuthController {
             this.authService.validateCredentials(email.toLowerCase(), password)
 
             // find user by Key, and validate password
-            const userExists = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
+            let userExists:any = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
             if(!userExists){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
                 return { message: 'Invalid User credentials' };
@@ -74,31 +75,37 @@ export class AuthController {
 
                 await lucia.invalidateSession(tempSessId);
             }
-            
 
-            const payload = {
-                names: `${userExists.firstname} ${userExists.lastname}`,
+            const sanitizedUser = {
+                firstname: userExists.firstname,
+                lastname: userExists.lastname,
                 email: userExists.email,
                 username: userExists.email,
                 phone: userExists.phone,
                 roles: userExists.roles,
                 emailVerified: userExists.emailVerified,
                 createdAt: userExists.createdAt,
+                updatedAt: userExists.updatedAt,
                 profileId: userExists.profile?.id ?? null,
                 profileIsActive: userExists.profile?.isActive ?? null,
                 sessions: sessions.length
             }
 
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, authJWT, userExists, headers, undefined, rememberme);
-
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, elysia_jwt, userExists, headers, rememberme);
             if(authMethod === 'JWT'){
                 set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
             } else if (authMethod === 'Cookie'){
                 set.headers["Set-Cookie"] = tokenOrCookie.serialize();
             }
+
+            // DELETE PASSWORD FROM OBJECT FOR SAFETY
+            delete userExists.hashedPassword;
+            
+            // RAW redis function
+            const rr = await redisSet(`user:${userExists.id}`, userExists);
             
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: payload, message: 'Successfully logged in' };
+            return { data: sanitizedUser, message: 'Successfully logged in' };
         } catch (e:any) {
             console.error(e);
             
@@ -123,7 +130,8 @@ export class AuthController {
     }
 
 
-    signup = async({ set, request:{headers}, body: { firstname, lastname, email, phone, password, confirmPassword} } :any) => {
+    signup = async({ set, body } :any) => {
+        const { firstname, lastname, email, phone, password, confirmPassword} = body;
         
         // Create User 
         try {
@@ -178,11 +186,15 @@ export class AuthController {
             // const session = await this.authService.createLuciaSession(result.id, headers);
             // const sessionCookie = lucia.createSessionCookie(session.id);
 
-            const sanitizedUser = this.authService.sanitizeUserObject(result);
+            const sanitizedUser = await this.authService.sanitizeUserObject(result);
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             // set.headers["Set-Cookie"] = sessionCookie.serialize();
-            return { data: sanitizedUser, message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})` };
+            return {
+                data: sanitizedUser,
+                message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})`,
+                note: 'User account created' + autoUser ? ' via Auto-enrol' : '. No Auto-enrol'
+            };
         } catch (e) {
             console.error(e);
 
@@ -205,36 +217,59 @@ export class AuthController {
         }
     }
 
-    async logout({ set, request:{headers}, session, cookie: { lucia_session }, authJWT }: any){
-        const isCookieValid = await lucia.validateSession(session.id);
+    logout = async ({ set, request:{headers}, session, cookie, elysia_jwt, authMethod }: any) => {
 
-        const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
-        if(!token){
-            set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
-            return { message: 'No access token present' };
+        try {
+            // Determine the authentication method
+            const isCookieAuth = session?.id; // If session ID is present, assume cookie-based auth
+            const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
+            console.error(cookie);
+            
+    
+            if (authMethod === 'Cookie') {
+                // Handle cookie-based authentication
+                if (!await lucia.validateSession(session.id)) {
+                    set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
+                    return { message: 'Invalid session' };
+                }
+    
+                // Invalidate the session
+                await lucia.invalidateSession(session.id);
+    
+                // Create a blank session cookie to clear the existing one
+                const sessionCookie = lucia.createBlankSessionCookie();
+                set.headers['Set-Cookie'] = sessionCookie.serialize();
+                
+            } else if (authMethod === 'JWT') {
+                // Handle JWT-based authentication
+                if (!await elysia_jwt.verify(token)) {
+                    set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
+                    return { message: 'Invalid or expired token' };
+                }
+    
+                // Blacklist the token
+                await blacklistToken(token, 60 * 60); // Adjust the expiry as needed
+    
+                // Optionally sign out the JWT token
+                await elysia_jwt.sign(null);
+    
+                // No need to handle cookies for JWT auth
+            } else {
+                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
+                return { message: 'No session or token present' };
+            }
+    
+            // Set the response status
+            set.status = HttpStatusEnum.HTTP_200_OK;
+            return { message: 'Successfully logged out' };
+            
+        } catch (error) {
+            console.error('Logout error:', error);
+            
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: 'Unable to log user out' };
         }
-        const isJWTValid = await authJWT.verify(token);
-
-        if(!isCookieValid && !isJWTValid.userId){
-            set.status = HttpStatusEnum.HTTP_405_METHOD_NOT_ALLOWED;
-            return { message: 'You were not logged in' }
-        }
-
-        await authJWT.sign(null);
-
-        const sessionCookie = lucia.createBlankSessionCookie();
         
-        await lucia.invalidateSession(session.id);
-
-        lucia_session.value = sessionCookie.value;
-        await lucia_session.set(sessionCookie.attributes);
-
-        // redirect back to login page
-        set.status = HttpStatusEnum.HTTP_200_OK;
-        // set.headers['HX-Redirect'] = '/';
-        // set.redirect = '/auth/login';
-        set.headers['Set-Cookie'] = sessionCookie.serialize();
-        return { message: 'You successfully logged out' };
     }
 
     async getAllMySessions({set, user}:any){

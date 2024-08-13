@@ -107,7 +107,7 @@ export const AuthHandler = new Elysia({
     .post('/register', authController.signup, {
         body: RegisterUserDTO,
         response: {
-            201: t.Object({ data: t.Any(), message: t.String({ default: 'Guest Account successfully created (fullname)' }) }),
+            201: t.Object({ data: t.Any(), message: t.String({ default: 'Guest Account successfully created (fullname)' }), note: t.String() }),
             400: t.Object({ message: t.String({ default: 'A data persistence problem occurred' }) }),
             406: t.Object({ message: t.String({ default: 'That email address is taken' }) }),
             409: t.Object({ message: t.String({ default: 'That email address is already taken' }) }),
@@ -118,14 +118,15 @@ export const AuthHandler = new Elysia({
     })
 
     .post('/logout', authController.logout, {
-        beforeHandle: checkAuth,
+        // beforeHandle: checkAuth,
         response: {
             200: t.Union([
-                t.Object({ message: t.String({ default: 'You successfully logged out'}) }),
+                t.Object({ message: t.String({ default: 'Successfully logged out'}) }),
                 t.Undefined()
             ]),
-            401: t.Object({ message: t.String({ default: 'No access token present' }) }),
-            405: t.Object({ message: t.String({ default: 'You were not logged in' }) })
+            400: t.Object({ message: t.String({ default: 'No session or token present' }) }),
+            401: t.Object({ message: t.String({ default: 'Invalid or expired token' }) }),
+            500: t.Object({ message: t.String({ default: 'Unable to log user out' }) })
         },
         detail: swaggerDetails('Sign Out','Invalidates User\'s current session'),
     })

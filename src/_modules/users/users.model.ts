@@ -1,5 +1,5 @@
 import { TSchema, t } from "elysia";
-import { DocumentType, Gender, Role, SubscriptionType } from "@prisma/client";
+import { DocumentType, Gender, Profile, Role, SubscriptionType, User } from "@prisma/client";
 
 export const ProfileBodyDTO = t.Object({
     firstname: t.Optional(t.String()),
@@ -78,8 +78,8 @@ export const profileQueriesDTO = {
     account: t.Optional(t.BooleanString({ default: false })),
 }
 export const userQueriesDTO = {
-    isActive: t.Optional(t.Boolean()),
-    profile: t.Optional(t.Boolean({default: false})),
+    isActive: t.Optional(t.BooleanString()),
+    profile: t.Optional(t.BooleanString({default: false})),
 }
 
 
@@ -103,3 +103,12 @@ export const AutoUserResponseDTO = t.Object({
     isComment: t.Optional(t.Nullable(t.String())),
     createdAt: t.Optional(t.Date())
 })
+
+// Custom type of a User model that includes a Profile relation 😎
+export type UserWithProfile = User & { profile?: Profile|null;}
+
+// Custom type of a Partial User model that includes a Profile relation 😎
+export type PartialUserWithProfile = Partial<User> & { profile?: Profile|null;}
+
+// Custom type of a Profile model that includes a User Account relation 😎
+export type ProfileWithPartialUser = Profile & { account?: Partial<User>|null;}

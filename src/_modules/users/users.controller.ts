@@ -1,11 +1,12 @@
 import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
-import { AutoEnrol, Profile, User } from "@prisma/client";
+import { AutoEnrol, FileStatus, Profile, User } from "@prisma/client";
 import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
+import { cache, redisGet } from "~config/redis";
 
 
 export class UsersController {
@@ -41,8 +42,9 @@ export class UsersController {
     }
 
     // Retrieve single User [ADMIN | SELF]
-    getAccountById = async({ set, user, params, query:{ profile } }:any) => {        
+    getAccountById = async({ set, user, params, query }:any) => {
         const user_id = params?.userId ?? user.id ?? null;
+        const { profile } = query;
 
         try {
             if(!user_id){
@@ -92,44 +94,25 @@ export class UsersController {
     }
 
     // Retrieve single User Profile [ STAFF | ADMIN | SELF]
-    async getProfileByUserId({ set, user, params, query:{ account } }: any):Promise<{data: Profile, message:string}|{message:string}> {
+    getProfileByUserId = async ({ set, user, params, query }: any) => {
         const user_id = params?.userId ?? user.id;
-        
+        const { account } = query;
+
         try {
-            const profile = await db.profile.findUnique({
-                where: {
-                    userId: user_id
-                },
-                include: {
-                    user: account ? {
-                        select: {
-                            id: true,
-                            firstname: true,
-                            lastname: true,
-                            roles: true,
-                            email: true,
-                            emailVerified: true,
-                            phone: true,
-                            isActive: true,
-                            isComment: true,
-                            createdAt: true
-                        }
-                    } : false
-                }
-            });
+            const profile = await this.usersService.getProfileByUserId(user_id, { account })
 
             if(!profile){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Profile not found' };
+                return { message: 'Could not fetch Profile' };
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: profile, message: 'Successfully retrieved User Profile' };
-        } catch(e) {
+        } catch(e:any) {
             console.warn(e);
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Could not load User Profile of that ID' }
+            return { message: 'Could not fetch Profile of that ID', note: String(e.message) }
         }
     }
 
@@ -138,6 +121,8 @@ export class UsersController {
         const user_id = params?.userId ?? user.id ?? null;
 
         try {
+            // await redisGet<Profile>(`profile:user:${user_id}`);
+
             const profile = await db.profile.findUnique({
                 where: { userId: user_id },
                 include: {
@@ -146,13 +131,15 @@ export class UsersController {
                             id: true,
                             firstname: true,
                             lastname: true,
+                            username: true,
                             roles: true,
                             email: true,
                             emailVerified: true,
                             phone: true,
                             isActive: true,
                             isComment: true,
-                            createdAt: true
+                            createdAt: true,
+                            updatedAt: true
                         }
                     } : false
                 }
@@ -240,7 +227,7 @@ export class UsersController {
 
 
     // Create a User Profile, must have a verified email address
-    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, authJWT, authMethod }:any) => {
+    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, elysia_jwt, authMethod }:any) => {
 
         try {
             // Checking if ProfileID exists in session/token
@@ -321,7 +308,7 @@ export class UsersController {
             }
 
             // Generate access token using new profile details
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, authJWT, newProfile.user, headers, undefined, undefined);
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, elysia_jwt, newProfile.user, headers, undefined);
             if(authMethod === 'JWT'){
                 set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
             } else if (authMethod === 'Cookie'){
@@ -384,12 +371,35 @@ export class UsersController {
 
         try {
 
-            let uploadedImage: IImageUpload|null = null;
+            let uploadedImage: IImageUpload|any = null;
 
             if(body?.photo){
                 try {
                     // File service
-                    uploadedImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false)
+                    await db.$transaction(async (tx) =>{
+                        const tempImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false);
+        
+                        if(!uploadedImage){
+                            console.error('Unable to upload image');
+                            return { note: 'Could not upload User image'}
+                        }
+
+                        uploadedImage = tempImage; // Assign only after successful upload
+
+                        await tx.fileUpload.create({
+                            data:{
+                                origname: body.photo.name,
+                                name: uploadedImage.name,
+                                type: uploadedImage.type,
+                                size: uploadedImage.size,
+                                bucket: BucketType.USER,
+                                path: `/${BucketType.USER.toLowerCase()}/${uploadedImage.name}`,
+                                userProfileId: user.profileId,
+                                status: FileStatus.UPLOADED,
+                                isPublic: Boolean(true)
+                            }
+                        })
+                    })
                 } catch(err) {
                     console.error(err);
                 }

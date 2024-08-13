@@ -51,9 +51,12 @@ model Session {
   fresh         Boolean  @default(false)
   expiresAt     DateTime @map("expires_at")
   activeExpires BigInt   @map("active_expires")
-  host          String
-  userAgentHash String?  @map("user_agent_hash")
+  // host          String
+  // userAgentHash String?  @map("user_agent_hash")
+  deviceIdentifier  String  @map("device_identifier")
+  method        String   @map("authentication_method")
   os            String?
+  ip            String    @map("ip_addr")
   ipCountry     String?  @map("ip_country")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)

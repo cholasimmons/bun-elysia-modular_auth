@@ -1,7 +1,7 @@
 import Elysia, { t } from "elysia";
 import { UsersController, UsersService } from ".";
 import { AuthService } from "../auth";
-import { checkAuth, checkCookieAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
+import { checkAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
 import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, updateProfileBodyDTO, userQueriesDTO } from "./users.model";
 import { swaggerDetails } from "~utils/response_helper";
 import { paginationOptions } from "~modules/root/root.models";
@@ -68,13 +68,17 @@ export const UsersHandler = new Elysia({
     })
 
 
-    .get('/profile', users.getMyProfile,{
+    .get('/profile', users.getProfileByUserId,{
+        
         query: t.Object({ ...profileQueriesDTO }),
         response: {
-            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
-            404: t.Object({ message: t.String({ default:'Profile does not exist' })}),
+            200: t.Union([
+                t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
+                t.Unknown()
+            ]),
+            404: t.Object({ message: t.String({ default:'Could not fetch Profile' })}),
             406: t.Object({ message: t.String({ default:'Profile is deactivated' })}),
-            500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' })}),
+            500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' }), note: t.String()}),
         },
         detail: swaggerDetails('Get User Profile', 'Fetch current User Profile')
     })
