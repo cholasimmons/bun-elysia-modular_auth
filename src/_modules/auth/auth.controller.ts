@@ -123,6 +123,12 @@ export class AuthController {
                 return { message: "Authentication error" };
             }
 
+            if(e.name === 'PrismaClientInitializationError'){
+
+                set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+                return { message: 'Our system ran into an error', note: 'Database not initialized' };
+            }
+
             console.error(e);
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
             return { message: "An unknown login error occurred" };

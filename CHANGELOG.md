@@ -12,6 +12,7 @@
 - Included Redis cache for quicker retrieval of commonly used data
 - deviceIdentity now part of login process and sessions
 - Session now tracks deviceIdentity (hashed) and IP address of User
+- `/provinces` route added to showcase data retrieval in Mobile App
 
 ### Changed
 

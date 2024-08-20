@@ -26,6 +26,16 @@ export const RootHandler = new Elysia({ detail: { description:'Root endpoints', 
         detail: swaggerDetails('HTMX', 'HTMX test route')
     }) // htmx test route
 
+    /*** Sample data to test Mobile App */
+    .get('/provinces', root.provinces, {
+        detail: swaggerDetails('Fetch Demo App data', 'Returns data to showcase in Mobile App')
+    })
+
+    /*** Initialize App */
+    .get('/init', root.init, {
+        detail: swaggerDetails('Initialize App', 'Returns data beneficial to initialization')
+    })
+
     .get('/health', root.health, {
         // beforeHandle: [checkAuth],
         detail: swaggerDetails('System Health', 'Check system health'),

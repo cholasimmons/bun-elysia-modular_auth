@@ -50,7 +50,7 @@ import { CustomError } from "src/_modules/root/app.models";
 
   function handleDatabaseInitError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status , message: 'Database has not been initialized' };
+    return { code: set.status, message: 'Our system ran into an error', note: 'Database has not been initialized' };
   }
   function handleDatabaseValidationError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -116,9 +116,13 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleNoAccessError(error, set);
       case 'VALIDATION':
         return handleValidation(error, set);
+      case 'PrismaClientInitializationError':
+        return handleDatabaseInitError(error, set);
       default:
-        console.error(error);
+        console.error(error, 'Caught');
+        console.error(error.name, 'Name');
+        console.error(error.message, 'Message');
 
-        return { code: set.status, message: 'An unhandled error occurred' };
+        return { code: set.status, message: 'An unhandled error occurred', note: error };
     }
   }

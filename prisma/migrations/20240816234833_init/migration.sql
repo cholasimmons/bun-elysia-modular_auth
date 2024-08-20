@@ -78,9 +78,10 @@ CREATE TABLE "users"."sessions" (
     "fresh" BOOLEAN NOT NULL DEFAULT false,
     "expires_at" TIMESTAMP(3) NOT NULL,
     "active_expires" BIGINT NOT NULL,
-    "host" TEXT NOT NULL,
-    "user_agent_hash" TEXT,
+    "device_identifier" TEXT NOT NULL,
+    "authentication_method" TEXT NOT NULL,
     "os" TEXT,
+    "ip_addr" TEXT NOT NULL,
     "ip_country" TEXT,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

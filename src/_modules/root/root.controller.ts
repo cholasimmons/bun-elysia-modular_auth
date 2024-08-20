@@ -1,5 +1,6 @@
 import { HttpStatusEnum } from 'elysia-http-status-code/status';
 import consts from '~config/consts';
+import { zambiaProvinces } from './provinces';
 
 export class RootController {
   constructor(){}
@@ -67,6 +68,27 @@ export class RootController {
 
       return { message: `Error occurred` }
     }
+  }
+
+  async provinces({ set }:any) {
+    const provinces = zambiaProvinces;
+
+    set.status = HttpStatusEnum.HTTP_200_OK;
+    return { data: provinces, message: `Retrieved all ${provinces.length} provinces` }
+  }
+
+  async init({ set, store }:any) {
+    const spec = {
+      name: consts.server.name,
+      version: consts.server.version,
+      maintenance: store.maintenanceMode ?? 'Unavailable',
+      timezone: store.timezone,
+      creator: consts.server.author,
+      host: 'Hetzner Cloud, Helsinki'
+    };
+
+    set.status = HttpStatusEnum.HTTP_200_OK;
+    return { data: spec, message: `All Systems GO!` }
   }
   
   async health({store}:any){
