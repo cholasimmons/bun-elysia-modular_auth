@@ -12,9 +12,6 @@ import { getDeviceIdentifier } from "~utils/utilities";
 import { cache } from "~config/redis";
 
 
-// const nextYear = today.getUTCFullYear() + 1;
-// today.setFullYear(nextYear)
-
 class AuthService {
     private static instance: AuthService;
 
@@ -26,7 +23,7 @@ class AuthService {
     constructor(){
         // this.today = this.oneDayAgo = new Date();
         // this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
-        this.resend = new Resend(String(Bun.env.RESEND_API_KEY) || 're_12345');
+        this.resend = new Resend(String(Bun.env.RESEND_API_KEY));
     }
 
     public static getInstance(): AuthService {
@@ -38,24 +35,7 @@ class AuthService {
     }
 
 
-    // Clean full User object, removing sessions, password, OAuth IDs and profile
-    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
-        const cleanUser: Partial<User> = {
-            id: opts?.id ? user.id : undefined,
-            firstname: user.firstname,
-            lastname: user.lastname,
-            roles: user.roles,
-            email: user.email,
-            emailVerified: opts?.verified ? user.emailVerified : undefined,
-            phone: user.phone,
-            profileId: user.profileId,
-            isActive: opts?.active ? user.isActive : undefined,
-            isComment: opts?.comment ? user.isComment : undefined,
-            createdAt: user.createdAt
-        };
-
-        return cleanUser;
-    }
+    
 
     /**Validate email and password */
     validateCredentials(email:string, password:string, confirmPassword?:string){

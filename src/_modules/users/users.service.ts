@@ -177,7 +177,34 @@ export class UsersService {
             return roles;
         }
     }
-    
+
+
+    // Clean full User object, removing sessions, password, OAuth IDs and profile
+    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
+        let tempUser:any = user;
+
+        delete tempUser.hashedPassword;
+
+        const cleanUser: Partial<User> = {
+            id: opts?.id ? tempUser.id : undefined,
+            firstname: tempUser.firstname,
+            lastname: tempUser.lastname,
+            username: tempUser.username,
+            roles: tempUser.roles,
+            email: tempUser.email,
+            emailVerified: opts?.verified ? tempUser.emailVerified : undefined,
+            phone: tempUser.phone,
+            profileId: tempUser.profileId,
+            isActive: opts?.active ? tempUser.isActive : undefined,
+            isComment: opts?.comment ? tempUser.isComment : undefined,
+            createdAt: tempUser.createdAt,
+            updatedAt: tempUser.updatedAt,
+        };
+
+        return cleanUser;
+    }
+
+
     async getProfileByUserId(userId:string, opts?:{ account:boolean }){
         try {
             let cachedProfile = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);

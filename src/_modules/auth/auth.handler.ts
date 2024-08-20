@@ -6,22 +6,13 @@ import { checkAuth } from "~middleware/authChecks";
 import { oauth2 } from "elysia-oauth2";
 import { swaggerDetails } from "~utils/response_helper";
 
-const authService = new AuthService();
+const authService = AuthService.getInstance();
 const authController = new AuthController(authService);
 
 export const AuthHandler = new Elysia({
     prefix: '/auth',
     detail: { description: 'Authentication endpoints', tags: ['Auth'] }
 })
-    
-    // OAuth2 plugin
-    // .use(oauth2({
-    //     Google: [
-    //         Bun.env.GOOGLE_CLIENT_ID ?? '',
-    //         Bun.env.GOOGLE_API_KEY ?? '',
-    //         `http://${Bun.env.HOST ?? ''}:${Bun.env.PORT ?? 80}/v1/auth/login/google/callback`
-    //     ]
-    // }))
 
 
     /* GET */

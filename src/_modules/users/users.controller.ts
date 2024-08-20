@@ -1,31 +1,41 @@
 import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
-import { db } from "~config/prisma";
+import { db, prismaSearch } from "~config/prisma";
 import { AutoEnrol, FileStatus, Profile, User } from "@prisma/client";
 import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
 import { cache, redisGet } from "~config/redis";
+import { paginationOptions } from "~modules/root/root.models";
 
 
 export class UsersController {
-    private usersService: UsersService;
     private authService: AuthService;
-    private filesService: FilesService;
+    private fileService: FilesService;
 
-    constructor() {
-        this.usersService = new UsersService();
+    constructor(private userService: UsersService) {
         this.authService = AuthService.getInstance();
-        this.filesService = new FilesService();
+        this.fileService = new FilesService();
     }
 
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
-    getAllUsers = async({ set, query: { isActive, profiles } }:any) => {
+    getAllUsers = async({ set, query }:any) => {
+        const { isActive, profiles } = query;
+        const { include, select } = query;
+        const { page, limit, sortBy, sortOrder, searchField, search } = query;
+        const searchOptions = {
+            page, limit,
+            sortBy: { field: sortBy, order: sortOrder },
+            search: { field: searchField ?? 'lastname', value: search},
+            include: {}
+        }
+
         try {
-            const users = await this.usersService.getAll(isActive, profiles);
+            const users = await prismaSearch('user', searchOptions);
+            // const users = await this.userService.getAll(isActive, profiles);
 
             if(!users){
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -33,7 +43,7 @@ export class UsersController {
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: users, message: `Retrieved ${users.length > 1 ? users.length : '0'} Users` }
+            return { total: users.total, count: users.count, page: users.page, data: users.data, message: `Found ${users.data.length > 1 ? users.data.length : '0'} Users` }
         } catch (err:any) {
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
             return { message: 'Could not fetch Users' }
@@ -52,7 +62,7 @@ export class UsersController {
                 return { message: 'No User details found' };
             }
 
-            const u: Partial<User> = await this.usersService.getUser(user_id, {profile});
+            const u: Partial<User> = await this.userService.getUser(user_id, {profile});
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: u, message: 'Successfully retrieved User' };
@@ -74,7 +84,7 @@ export class UsersController {
                 return { message: 'No User ID found' };
             }
 
-            const u: Partial<User> = await this.usersService.getUser(user_id);
+            const u: Partial<User> = await this.userService.getUser(user_id);
 
             const isActive = u.isActive;
 
@@ -99,7 +109,7 @@ export class UsersController {
         const { account } = query;
 
         try {
-            const profile = await this.usersService.getProfileByUserId(user_id, { account })
+            const profile = await this.userService.getProfileByUserId(user_id, { account })
 
             if(!profile){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -272,7 +282,7 @@ export class UsersController {
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
             if(body.photo){
                 try{
-                    uploadedImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, id, usernameFromEmail(email), false)
+                    uploadedImage = await this.fileService.uploadPhoto(body.photo, BucketType.USER, id, usernameFromEmail(email), false)
                 } catch(err) {
                     console.error(err);
                 }
@@ -300,7 +310,7 @@ export class UsersController {
             //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             // }
 
-            const newProfile: any = await this.usersService.createUserProfile(ammendedProfile)
+            const newProfile: any = await this.userService.createUserProfile(ammendedProfile)
             
             if(!newProfile){
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -377,7 +387,7 @@ export class UsersController {
                 try {
                     // File service
                     await db.$transaction(async (tx) =>{
-                        const tempImage = await this.filesService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false);
+                        const tempImage = await this.fileService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false);
         
                         if(!uploadedImage){
                             console.error('Unable to upload image');

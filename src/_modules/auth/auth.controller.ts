@@ -13,14 +13,16 @@ import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic"
 import { parseCookies, serializeCookie } from "oslo/cookie";
 import { splitWords, usernameFromEmail } from "~utils/utilities";
 import { blacklistToken, cache, redisSet } from "~config/redis";
+import { UsersService } from "~modules/users";
 
 export class AuthController {
-    private authService: AuthService;
-    routes = [];
+    // private authService: AuthService;
+    private userService: UsersService;
     url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${consts.api.versionPrefix}${consts.api.version}`;
 
-    constructor(authService: AuthService) {
-        this.authService = authService;
+    constructor(private authService: AuthService) {
+        // this.authService = authService;
+        this.userService = new UsersService();
     }
 
     root({ cookie }: any):string{
@@ -105,7 +107,7 @@ export class AuthController {
             const rr = await redisSet(`user:${userExists.id}`, userExists);
             
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: sanitizedUser, message: 'Successfully logged in' };
+            return { data: userExists, message: 'Successfully logged in', note: { sessions: sessions.length} };
         } catch (e:any) {
             console.error(e);
             
@@ -159,23 +161,23 @@ export class AuthController {
             });
 
             const uid = generateId(16);
-            const result: User|null = await db.user.create({ data: {
+            const newUser: any = await db.user.create({ data: {
                 id: uid,
                 firstname,
                 lastname,
-                username: usernameFromEmail(autoUser?.email ?? email),
+                username: autoUser?.email ?? email, // usernameFromEmail(autoUser?.email ?? email),
                 email: autoUser?.email ?? email,
                 phone: (autoUser?.phone ?? phone) ?? null,
                 emailVerified: false,
                 isActive: true,
-                roles: autoUser ? autoUser?.roles : [Role.GUEST],
+                roles: autoUser?.roles,
                 hashedPassword
-            } });
+            } }) as User;
 
-            console.log("Created User ", result.firstname, autoUser ? '. Auto enrolled user: '+autoUser : 'No auto-enrol');
+            console.log("Created User ", newUser.firstname, autoUser ? '. Auto enrolled user: '+autoUser : 'No auto-enrol');
 
             if(Bun.env.NODE_ENV === 'production'){
-                const verificationCode = await this.authService.generateEmailVerificationCode(result.id, email);
+                const verificationCode = await this.authService.generateEmailVerificationCode(newUser.id, email);
 	            this.authService.sendEmailVerificationCode(email, verificationCode)
                     .then(() => {
                         console.debug(`Verification code sent to ${email}`);
@@ -192,12 +194,13 @@ export class AuthController {
             // const session = await this.authService.createLuciaSession(result.id, headers);
             // const sessionCookie = lucia.createSessionCookie(session.id);
 
-            const sanitizedUser = await this.authService.sanitizeUserObject(result);
+            // DELETE PASSWORD FROM RETURN OBJECT
+            delete newUser.hashedPassword;
+
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            // set.headers["Set-Cookie"] = sessionCookie.serialize();
             return {
-                data: sanitizedUser,
+                data: newUser,
                 message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})`,
                 note: 'User account created' + autoUser ? ' via Auto-enrol' : '. No Auto-enrol'
             };
