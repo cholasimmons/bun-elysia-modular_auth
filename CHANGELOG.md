@@ -1,6 +1,24 @@
 # Changelog
 
 
+## [0.4.2] - 14-12-2024
+
+### Added
+
+- Added Wallet, Coupons & Messaging modules (not yet production ready)
+- Wallet module can be expanded to communicate with third-party wallet systems, currently this is only a "ledger"
+- Coupons module allows discounts to be issued
+- Messaging module sends messages/notifications to a User from the System or another User
+
+### Fixed
+
+- auth middleware returns `error()` object instead of a custom object, this allows the router responses to not throw errors anymore
+
+### Updated
+
+- Elysia, 1.1.26
+
+
 ## [0.4.1] - 14-08-2024
 
 ### Added

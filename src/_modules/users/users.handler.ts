@@ -6,8 +6,6 @@ import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDT
 import { swaggerDetails } from "~utils/response_helper";
 import { paginationOptions } from "~modules/root/root.models";
 
-const usersService = new UsersService();
-const authService = new AuthService();
 const users = new UsersController();
 
 export const UsersHandler = new Elysia({
@@ -25,10 +23,7 @@ export const UsersHandler = new Elysia({
             ...userQueriesDTO,
         }),
         response: {
-            200: t.Union([
-                t.Object({ data: t.Array(UserResponseDTO), message: t.Optional( t.String({ default: 'Successfully retrieved Users' }) ) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: t.Array(UserResponseDTO), message: t.Optional( t.String({ default: 'Successfully retrieved Users' }) ) }),
             404: t.Object({ message: t.String({ default: 'No Users found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch Users' }) })
         },
@@ -39,10 +34,7 @@ export const UsersHandler = new Elysia({
     .get('/user', users.getAccountById, {
         query: t.Object({ ...userQueriesDTO }),
         response: {
-            200: t.Union([
-                t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not search for a User' }) })
         },
@@ -51,16 +43,13 @@ export const UsersHandler = new Elysia({
 
     // Get single User by ID [STAFF]
     .get('/user/:userId', users.getAccountById, {
-        beforeHandle: [checkIsStaff],
+        beforeHandle: [checkIsAdmin, checkIsStaff],
         params: t.Object({
             userId: t.String()
         }),
         query: t.Object({ ...userQueriesDTO }),
         response: { 
-            200: t.Union([
-                t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: UserResponseDTO, message: t.String({ default: 'Successfully retrieved User' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch a User' }) })
         },
@@ -72,10 +61,7 @@ export const UsersHandler = new Elysia({
         
         query: t.Object({ ...profileQueriesDTO }),
         response: {
-            200: t.Union([
-                t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
-                t.Unknown()
-            ]),
+            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
             404: t.Object({ message: t.String({ default:'Could not fetch Profile' })}),
             406: t.Object({ message: t.String({ default:'Profile is deactivated' })}),
             500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' }), note: t.String()}),
@@ -88,10 +74,7 @@ export const UsersHandler = new Elysia({
         params: t.Object({ userId: t.String() }),
         query: t.Object({ ...profileQueriesDTO }),
         response: {
-            200: t.Union([
-                t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved User Profile' }) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved User Profile' }) }),
             404: t.Object({ message: t.String({ default:'Profile not available' })}),
             500: t.Object({ message: t.String({ default:'Could not load User Profile of that ID' })}),
         },
@@ -102,10 +85,7 @@ export const UsersHandler = new Elysia({
         beforeHandle: [checkIsStaff],
         query: t.Object({ ...paginationOptions, ...profileQueriesDTO }),
         response: {
-            200: t.Union([
-                t.Object({ data: t.Array(ProfileResponseDTO), message: t.String({ default: 'Successfully retrieved n User Profiles' }) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: t.Array(ProfileResponseDTO), message: t.String({ default: 'Successfully retrieved n User Profiles' }) }),
             404: t.Object({message: t.String({ default: 'No User Profiles found' }) }),
             500: t.Object({message: t.String({ default: 'Unable to fetch User Profiles' }) })
         },
@@ -116,10 +96,7 @@ export const UsersHandler = new Elysia({
     .get('/autousers', users.getAllAutoEnrollers,{
         beforeHandle:[checkIsStaff],
         response: {
-            200: t.Union([
-                t.Object({ data: t.Array(AutoUserResponseDTO), message: t.String({ default: 'Retrieved all Auto-Users' }) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: t.Array(AutoUserResponseDTO), message: t.String({ default: 'Retrieved all Auto-Users' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch Auto-Users.'}) })
         },
         detail: swaggerDetails('Get Auto Users [Staff]', 'Fetch all Auto Users (Staff only)')
@@ -156,10 +133,7 @@ export const UsersHandler = new Elysia({
         beforeHandle: [checkEmailVerified],
         body: ProfileBodyDTO,
         response: {
-            201: t.Union([
-                t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully created new User Profile' }) }),
-                t.Undefined()
-            ]),
+            201: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully created new User Profile' }) }),
             302: t.Object({ message: t.String({ default: 'A profile already exists with those credentials'}) }),
             403: t.Object({ message: t.String({ default: 'Your account is not verified.'}) }),
             406: t.Object({ message: t.String({ default: 'Your submission was not valid.'}) }),
@@ -174,10 +148,7 @@ export const UsersHandler = new Elysia({
         beforeHandle:[checkIsAdmin],
         body: AutoUserBodyDTO,
         response: {
-            201: t.Union([
-                t.Object({ data: AutoUserResponseDTO, message: t.String({ default: 'Successfullly addedd an Auto-User' }) }),
-                t.Undefined()
-            ]),
+            201: t.Object({ data: AutoUserResponseDTO, message: t.String({ default: 'Successfullly addedd an Auto-User' }) }),
             500: t.Object({ message: t.String({ default: 'Could not create Auto-User.'}) })
         },
         detail: swaggerDetails('Create Auto User [Admin]', 'Appends a new Auto Enrol User (Admin only)')
@@ -206,10 +177,7 @@ export const UsersHandler = new Elysia({
         query: t.Object({ ...profileQueriesDTO }),
         body: t.Object({...updateProfileBodyDTO}),
         response: {
-            200: t.Union([
-                t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),
-                t.Undefined()
-            ]),
+            200: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully updated User Profile.'}) }),
             404: t.Object({ message: t.String({ default: 'Could not update Profile' })}),
             500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
         },
@@ -220,10 +188,7 @@ export const UsersHandler = new Elysia({
     .patch('/user/deactivate', users.deactivateUser, {
         body: t.Optional(t.Object({ isComment: t.String() })),
         response: {
-            200: t.Union([
-                t.Object({ data: t.Optional(UserResponseDTO), message: t.String() }),
-                t.Undefined()
-            ])
+            200: t.Object({ data: t.Optional(UserResponseDTO), message: t.String() }),
             // 404: t.Object({ message: t.String({ default: 'Profile not found' })}),
             // 500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
         },
@@ -236,10 +201,7 @@ export const UsersHandler = new Elysia({
         params: t.Object({ userId: t.String() }),
         body: t.Object({ isComment: t.String() }),
         response: {
-            200: t.Union([
-                t.Object({ data: t.Optional(UserResponseDTO), message: t.String() }),
-                t.Undefined()
-            ])
+            200: t.Object({ data: t.Optional(UserResponseDTO), message: t.String() }),
             // 404: t.Object({ message: t.String({ default: 'Profile not found' })}),
             // 500: t.Object({ message: t.String({ default: 'Could not modify User Profile.' })})
         },

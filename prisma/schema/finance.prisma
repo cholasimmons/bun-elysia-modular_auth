@@ -1,0 +1,132 @@
+// This is a separate Prisma schema file,
+
+// Finance Management, Wallet, Coupons
+
+model Wallet {
+  id            String              @id @unique @default(uuid())
+  userProfileId String?             @unique @map("user_profile_id")
+  balance       Decimal             @default(0.00) @db.Money
+  currency      Currency            @default(ZMW)
+  isActive      Boolean             @default(true) @map("is_active")
+  isComment     String?             @map("is_comment")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  transactions  WalletTransaction[] @relation("wallet_transactions")
+  userProfile   Profile?            @relation("user_wallet", fields: [userProfileId], references: [id])
+
+  @@index([userProfileId])
+  @@map("wallets")
+  @@schema("finance")
+}
+
+model WalletTransaction {
+  id             String            @id @unique @default(uuid())
+  amount         Decimal           @db.Money
+  discount       Decimal           @db.Money
+  discountCode   String?           @map("discount_code")
+  transactionFee Decimal           @map("transaction_fee") @db.Money
+  reference      String?           @db.VarChar(64)
+  payerProfileId String            @map("payer_id")
+  payeeProfileId String            @map("payee_id")
+  currency       Currency
+  status         TransactionStatus @default(PENDING)
+  longitude      Decimal?          @db.Decimal(9, 6)
+  latitude       Decimal?          @db.Decimal(9, 6)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  payerWallet    Wallet            @relation("wallet_transactions", fields: [payerProfileId], references: [id])
+
+  @@index([createdAt(sort: Desc), payerProfileId, payeeProfileId])
+  @@map("wallet_transactions")
+  @@schema("finance")
+}
+
+model WalletTransactionLog {
+  id                  Int      @id @unique @default(autoincrement())
+  payerId             String   @map("payer_id")
+  payerNames          String   @map("payer_names")
+  payerNationalId     String   @map("payer_national_id")
+  payerNationalIdType String   @map("payer_national_id_type")
+  payeeId             String   @map("payee_id")
+  payeeNationalId     String   @map("payee_national_id")
+  payeeNationalIdType String   @map("payee_national_id_type")
+  payeeNames          String   @map("payee_names")
+  amount              Decimal  @db.Decimal(10, 2)
+  discount            Decimal  @db.Decimal(10, 2)
+  discountCode        String?  @map("disocunt_code")
+  transactionFee      Decimal  @map("transaction_fee") @db.Decimal(10, 2)
+  currency            String
+  status              String
+  timestamp           DateTime
+  longitude           Decimal? @db.Decimal(9, 6)
+  latitude            Decimal? @db.Decimal(9, 6)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([timestamp(sort: Desc), createdAt(sort: Desc), payerId, payeeId, status])
+  @@map("wallet_transactions_logs")
+  @@schema("logs")
+}
+
+model Coupon {
+  id             String       @id @unique @default(uuid())
+  code           String       @unique
+  name           String
+  discount       Float
+  discountType   DiscountType @default(FLAT) @map("discount_type")
+  expiresAt      DateTime?    @map("expires_at") @db.Timestamptz(6)
+  maxUses        Int          @default(1)
+  ownerProfileId String?      @map("owner_profile_id")
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  usedBy         Profile[]    @relation("user_used_coupons")
+
+  @@index([code, ownerProfileId])
+  @@map("coupons")
+  @@schema("finance")
+}
+
+model CouponLog {
+  id              Int      @id @unique @default(autoincrement())
+  code            String   @map("coupon_code")
+  name            String   @map("coupon_name")
+  discount        Float
+  discountType    String   @map("discount_type")
+  timestamp       DateTime
+  expiresAt       DateTime @map("expires_at")
+  timesUsed       Int      @map("times_used")
+  maxUses         Int      @map("max_uses")
+  usedByProfileId String   @map("user_profile_id")
+  usedByNames     String   @map("user_names")
+  usedFor         CaseType @map("used_for")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([code, timestamp(sort: Desc), createdAt(sort: Desc)])
+  @@map("coupon_logs")
+  @@schema("logs")
+}
+
+
+
+// ENUMS
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  @@schema("finance")
+}
+
+enum Currency {
+  ZMW
+  USD
+  GBP
+  ZAR
+  @@schema("finance")
+}
+
+enum DiscountType {
+  FLAT
+  PERCENTAGE
+  @@schema("finance")
+}

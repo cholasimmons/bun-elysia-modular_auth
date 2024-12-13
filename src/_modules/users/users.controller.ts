@@ -13,24 +13,25 @@ import { paginationOptions } from "~modules/root/root.models";
 export class UsersController {
     private authService: AuthService;
     private fileService: FilesService;
+    private userSvc: UsersService;
 
-    constructor(private userService: UsersService) {
+    constructor() {
         this.authService = AuthService.getInstance();
         this.fileService = new FilesService();
+        this.userSvc = new UsersService();
     }
 
     /* GET */
 
     // STAFF: Get ALL Users, or only active ones via query ?isActive=true/false
     getAllUsers = async({ set, query }:any) => {
-        const { isActive, profiles } = query;
-        const { include, select } = query;
+        const { isActive, profile } = query;
         const { page, limit, sortBy, sortOrder, searchField, search } = query;
         const searchOptions = {
             page, limit,
-            sortBy: { field: sortBy, order: sortOrder },
+            sortBy: { field: sortBy ?? 'createdAt', order: sortOrder },
             search: { field: searchField ?? 'lastname', value: search},
-            include: {}
+            include: { profile, isActive }
         }
 
         try {
@@ -62,7 +63,7 @@ export class UsersController {
                 return { message: 'No User details found' };
             }
 
-            const u: Partial<User> = await this.userService.getUser(user_id, {profile});
+            const u: Partial<User> = await this.userSvc.getUser(user_id, {profile});
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: u, message: 'Successfully retrieved User' };
@@ -84,7 +85,7 @@ export class UsersController {
                 return { message: 'No User ID found' };
             }
 
-            const u: Partial<User> = await this.userService.getUser(user_id);
+            const u: Partial<User> = await this.userSvc.getUser(user_id);
 
             const isActive = u.isActive;
 
@@ -109,7 +110,7 @@ export class UsersController {
         const { account } = query;
 
         try {
-            const profile = await this.userService.getProfileByUserId(user_id, { account })
+            const profile = await this.userSvc.getProfileByUserId(user_id, { account })
 
             if(!profile){
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -310,7 +311,7 @@ export class UsersController {
             //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             // }
 
-            const newProfile: any = await this.userService.createUserProfile(ammendedProfile)
+            const newProfile: any = await this.userSvc.createUserProfile(ammendedProfile)
             
             if(!newProfile){
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;

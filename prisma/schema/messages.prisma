@@ -1,0 +1,39 @@
+// This is a separate Prisma schema file,
+
+// Message Management
+model Message {
+    id            String            @id @default(cuid()) // UUID for the message
+    senderId      String?                                // ID of the sender (optional for system-generated messages)
+    recipientId   String                                 // ID of the recipient
+    title         String                                 // Title of the message
+    message       String                                 // Content of the message
+    priority      MessagePriority @default(LOW)          // Priority level
+    deliveryMethods MessageDelivery[]                    // ['internal', 'notification', 'email', 'sms']
+    isRead        Boolean @default(false)                // Whether the message has been read
+    createdAt     DateTime @default(now()) @map("created_at") // Timestamp of creation
+    updatedAt     DateTime @updatedAt @map("updated_at") // Timestamp of the last update
+    isArchived    Boolean @default(false)                // To archive old messages
+
+    @@index([id, senderId, createdAt(sort: Desc)])
+    @@map("messages")
+    @@schema("messages")
+}
+
+
+
+// ENUMS
+
+enum MessagePriority {
+  LOW
+  MEDIUM
+  HIGH
+  @@schema("messages")
+}
+
+enum MessageDelivery {
+  INTERNAL
+  NOTIFICATION
+  EMAIL
+  SMS
+  @@schema("messages")
+}
