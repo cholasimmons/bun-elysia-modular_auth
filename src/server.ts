@@ -8,11 +8,15 @@ import { FilesHandler } from "~modules/files";
 import { WalletsRouter } from "~modules/wallets";
 import { MessageRouter } from "~modules/messages";
 import { CouponsRouter } from "~modules/coupons";
+import { initializeEventListeners } from "./_events";
 
 
 // ROUTES
 export function registerControllers(app:Elysia){
-  // console.info("Loading Handlers...");
+  console.debug("Loading Handlers...");
+
+  // Initialize Event listeners (Redis)
+  initializeEventListeners();
   
   // root
   app.use(RootHandler);
@@ -35,5 +39,5 @@ export function registerControllers(app:Elysia){
   // messaging
   app.use(MessageRouter);
 
-  // console.info("Loading Handlers... Done!");
+  console.debug("Loading Handlers... Done!");
 }

@@ -6,8 +6,8 @@ import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
-import { cache, redisGet } from "~config/redis";
 import { paginationOptions } from "~modules/root/root.models";
+import { NotFoundError } from "src/_exceptions/custom_errors";
 
 
 export class UsersController {
@@ -77,12 +77,13 @@ export class UsersController {
 
     // Retrieve User's Account status [SELF | STAFF]
     getAccountStatus = async({ set, user, params }:any) => {        
-        const user_id = params?.userId ?? user.id;        
+        const user_id = params?.userId ?? user?.id;        
 
         try {
             if(!user_id){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'No User ID found' };
+                throw new NotFoundError("No User ID found", 404, "No User ID was provided");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'No User ID found' };
             }
 
             const u: Partial<User> = await this.userSvc.getUser(user_id);
@@ -129,7 +130,7 @@ export class UsersController {
 
     // Retrieve currently logged in User's Profile [SELF]
     async getMyProfile({ set, user, params, query:{ account } }: any){
-        const user_id = params?.userId ?? user.id ?? null;
+        const user_id = params?.userId ?? user?.id ?? null;
 
         try {
             // await redisGet<Profile>(`profile:user:${user_id}`);
@@ -157,13 +158,15 @@ export class UsersController {
             });
 
             if(!profile){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Profile does not exist'};
+                throw new NotFoundError("Profile does not exist");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'Profile does not exist'};
             }
 
             if(!profile.isActive){
-                set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
-                return { data: profile.isComment, message: 'Profile is deactivated' };
+                throw new NotFoundError("Profile is deactivated", HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE);
+                // set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
+                // return { data: profile.isComment, message: 'Profile is deactivated' };
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
@@ -171,8 +174,7 @@ export class UsersController {
         } catch(e) {
             console.warn(e);
 
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Unable to access profile storage.' }
+            throw e;
         }
     }
 
@@ -238,7 +240,7 @@ export class UsersController {
 
 
     // Create a User Profile, must have a verified email address
-    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, elysia_jwt, authMethod }:any) => {
+    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, jwt, authMethod }:any) => {
 
         try {
             // Checking if ProfileID exists in session/token
@@ -319,7 +321,7 @@ export class UsersController {
             }
 
             // Generate access token using new profile details
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, elysia_jwt, newProfile.user, headers, undefined);
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, newProfile.user, headers, undefined);
             if(authMethod === 'JWT'){
                 set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
             } else if (authMethod === 'Cookie'){

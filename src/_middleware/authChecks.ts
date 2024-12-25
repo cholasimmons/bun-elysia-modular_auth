@@ -6,8 +6,11 @@ import { db } from "~config/prisma";
 
 
 // Dynamically check between admin-console and client-app
-export const checkAuth = async ({ set, session, user, request:{headers}, cookie:{ lucia_auth }, authMethod, elysia_jwt, error }: any)  => {
+export const checkAuth = async ({ session, user, request:{headers}, cookie:{ lucia_auth }, authMethod, jwt, error }: any)  => {
  
+  // Check if the Authentication-Method header is present
+  // const authMethod = headers.get('Authentication-Method') ?? null;
+
   if (!authMethod) {
     console.debug('Authentication method not specified.', authMethod);
     
@@ -21,11 +24,11 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
     // Handle cookie-based authentication
     // Check for session cookie and validate the admin's session
 
-    if(!session){
+    if(!session && !user){
       console.warn("No session data present. Are you logged in?");
       
       // set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
-      return error(401, 'Unauthorized Access');
+      return error(401, 'Unauthorized Access. Are you signed in?');
     }
 
   } else if (authMethod === 'JWT') {
@@ -39,7 +42,7 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
       return error(401, "Unauthorized. Access token not present");
     }
 
-    const tokenUser = await elysia_jwt.verify(token);
+    const tokenUser = await jwt.verify(token);
     
     if (!tokenUser?.id) {
       // set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
@@ -48,15 +51,15 @@ export const checkAuth = async ({ set, session, user, request:{headers}, cookie:
   } else {
       // If an unsupported authentication method is specified, return an error response
       // set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-      return error(400, `${authMethod} - unsupported authentication method`);
+      return error(400, `${authMethod} unsupported authentication method`);
   }
 }
 
 // Check if user's email is verified
-export const checkEmailVerified = async ({ set, user, error }:any) => {
+export const checkEmailVerified = async ({ user, error }:any) => {
   if(!user){
     // set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return error(403, 'User session unavailable.');
+    return error(403, 'User entity unavailable.');
   }
 
   if(!user.emailVerified){
@@ -67,7 +70,7 @@ export const checkEmailVerified = async ({ set, user, error }:any) => {
 
 
 // Check user roles for Admin
-export const checkIsAdmin = async ({ set, user, error }:any) => {
+export const checkIsAdmin = async ({ user, error }:any) => {
   const roles = user?.roles;
 
   if(!roles.some((role:any) => [Role.ADMIN].includes(role))) {
@@ -77,7 +80,7 @@ export const checkIsAdmin = async ({ set, user, error }:any) => {
 }
 
 // Check user roles for "Staff" roles"
-export const checkIsStaff = async ({ set, user, error }:any) => {
+export const checkIsStaff = async ({ user, error }:any) => {
   const roles = user?.roles;
 
   if(!roles.some((role:any) => [Role.SUPERVISOR, Role.SUPPORT].includes(role))) {
@@ -87,8 +90,8 @@ export const checkIsStaff = async ({ set, user, error }:any) => {
 }
 
 // checks if current User has an active profile
-export const checkForProfile =  async ({ set, user, error }: any) => {
-  const { isActive, profileId, profileIsActive } = user;
+export const checkForProfile =  async ({ user, error }: any) => {
+  const { isActive, profileId, profileIsActive } = user ?? {};
   
   // if (!user || !isActive) {
   //   set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
@@ -96,9 +99,9 @@ export const checkForProfile =  async ({ set, user, error }: any) => {
   // }
 
   if(!profileId){
-    const reason = !user.profileId
+    const reason = !profileId
       ? 'User Profile required'
-      : !user.profileIsActive
+      : !profileIsActive
         ? 'Active User Profile required'
         : null
     // set.status = 403;
@@ -126,7 +129,7 @@ const checkCookieAuth = async ({ set, session, request:{headers}, cookie:{ lucia
 
 // this checks JWT token (Frontend client), if not supplied the request will be rejected!
 const checkJWTAuth = (app: Elysia) => 
-  app.derive(async ({ elysia_jwt, set, request:{ headers } }:any) => {
+  app.derive(async ({ jwt, set, request:{ headers } }:any) => {
 
     const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
     if(!token){
@@ -140,7 +143,7 @@ const checkJWTAuth = (app: Elysia) =>
     }
 
 
-    const { id } = await elysia_jwt.verify(token);
+    const { id } = await jwt.verify(token);
     if (!id) {
       set.status = 401;
       console.debug("No user.userId in JWT");

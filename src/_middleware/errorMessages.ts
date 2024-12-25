@@ -49,13 +49,19 @@ import { CustomError } from "src/_modules/root/app.models";
   }
 
   function handleDatabaseInitError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status, message: 'Our system ran into an error', note: 'Database has not been initialized' };
+    set.status = error.status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: set.status, message: 'Persistent storage error', note: 'Database has not been initialized' };
   }
   function handleDatabaseValidationError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'Data does not adhere to schema standard' };
   }
+
+  function handleDatabaseError(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+    return { code: error.status || set.status, message: 'A persistent storage error occurred', note: error.message };
+  }
+
   function handleOAuth2Error(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'An authentication state error occured' };
@@ -84,11 +90,12 @@ import { CustomError } from "src/_modules/root/app.models";
     }
   }
 
-  export function ErrorMessages(
-    code: string,
-    error: Error | CustomError,
-    set: any
-  ) {
+  export const errorMessages = ({
+    code,
+    error,
+    set
+  }:any) => {
+    console.debug('Caught: error.name ', error.name);
 
     switch(error.name){
       case 'PrismaClientInitializationError':
@@ -97,8 +104,8 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseValidationError(error, set);
       case 'PrismaClientKnownRequestError':
         return handleRequestError(error, set);
-      // case 'Error':
-        // return handleOAuth2Error(error, set);
+      case 'DatabaseError':
+        return handleDatabaseError(error, set);
     }
 
     switch (code) {
@@ -119,10 +126,6 @@ import { CustomError } from "src/_modules/root/app.models";
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
       default:
-        console.error(error, 'Caught');
-        console.error(error.name, 'Name');
-        console.error(error.message, 'Message');
-
-        return { code: set.status, message: 'An unhandled error occurred', note: error };
+        return { code: set.status, message: 'An unhandled error occurred', note: error.message };
     }
   }

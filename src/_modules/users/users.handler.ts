@@ -17,7 +17,7 @@ export const UsersHandler = new Elysia({
 
     // Get all Users [STAFF]
     .get('/', users.getAllUsers, {
-        beforeHandle: [ checkForProfile, checkIsStaff ],
+        beforeHandle: [ checkIsAdmin || checkIsStaff, checkForProfile ],
         query: t.Object({
             ...paginationOptions,
             ...userQueriesDTO,
@@ -43,7 +43,7 @@ export const UsersHandler = new Elysia({
 
     // Get single User by ID [STAFF]
     .get('/user/:userId', users.getAccountById, {
-        beforeHandle: [checkIsAdmin, checkIsStaff],
+        beforeHandle: [checkIsStaff || checkIsAdmin],
         params: t.Object({
             userId: t.String()
         }),
@@ -70,7 +70,7 @@ export const UsersHandler = new Elysia({
     })
 
     .get('/profile/:userId', users.getProfileByUserId,{
-        beforeHandle: [checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         params: t.Object({ userId: t.String() }),
         query: t.Object({ ...profileQueriesDTO }),
         response: {
@@ -82,7 +82,7 @@ export const UsersHandler = new Elysia({
     })
 
     .get('/profiles', users.getAllProfiles, {
-        beforeHandle: [checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         query: t.Object({ ...paginationOptions, ...profileQueriesDTO }),
         response: {
             200: t.Object({ data: t.Array(ProfileResponseDTO), message: t.String({ default: 'Successfully retrieved n User Profiles' }) }),
@@ -94,7 +94,7 @@ export const UsersHandler = new Elysia({
 
     // Add a new Post User Account [ADMIN]
     .get('/autousers', users.getAllAutoEnrollers,{
-        beforeHandle:[checkIsStaff],
+        beforeHandle:[checkIsAdmin || checkIsStaff],
         response: {
             200: t.Object({ data: t.Array(AutoUserResponseDTO), message: t.String({ default: 'Retrieved all Auto-Users' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch Auto-Users.'}) })
@@ -103,7 +103,7 @@ export const UsersHandler = new Elysia({
     })
 
     // Get Current logged in User's active status [SELF]
-    .get('/user/status', users.getAccountStatus, {
+    .get('/status/user', users.getAccountStatus, {
         response: {
             200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Successfully retrieved User Account status' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
@@ -113,7 +113,7 @@ export const UsersHandler = new Elysia({
     })
 
     // Get User's active status by userId [STAFF]
-    .get('/user/status/:userId', users.getAccountStatus, {
+    .get('/status/user/:userId', users.getAccountStatus, {
         // beforeHandle: [checkIsStaff],
         params: t.Object({ userId: t.String() }),
         response: {
@@ -197,7 +197,7 @@ export const UsersHandler = new Elysia({
 
     // Activate/Deactivate User Profile [STAFF | ADMIN]
     .patch('/user/deactivate/:userId', users.deactivateUser, {
-        beforeHandle: [checkIsAdmin, checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         params: t.Object({ userId: t.String() }),
         body: t.Object({ isComment: t.String() }),
         response: {

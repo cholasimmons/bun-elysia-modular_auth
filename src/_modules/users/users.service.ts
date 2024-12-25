@@ -3,8 +3,8 @@ import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
-import { cache, redisGet, redisSet } from "~config/redis";
-import { ProfileWithPartialUser } from "./users.model";
+import { redisGet, redisSet } from "~config/redis";
+import { ProfileWithPartialUser, UserWithProfile } from "./users.model";
 
 
 
@@ -49,13 +49,13 @@ export class UsersService {
     }
 
     // Returns a unique User from the DB with particular ID string
-    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<Partial<User>> {
+    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<UserWithProfile> {
         try {
-            let user = await redisGet<Partial<User>>(`user:${userId}`);
+            let user: UserWithProfile|null = await redisGet<UserWithProfile|null>(`user:${userId}`);
 
             if(!user){
                 user = await db.user.findUnique({
-                    where: { id: userId },
+                    where: { id: userId, isActive: opts?.isActive },
                     include: {
                         profile: opts?.profile ?? false,
                         authSession: false,
@@ -64,9 +64,10 @@ export class UsersService {
 
                 if(!user) throw new NotFoundError('Could not find user with that ID');
 
-                delete user.hashedPassword;
+                let cleanUser: UserWithProfile|any = { ...user}
+                delete cleanUser.hashedPassword;
 
-                await redisSet(`user:${userId}`, user);
+                await redisSet(`user:${userId}`, cleanUser);
             }
 
             return user;

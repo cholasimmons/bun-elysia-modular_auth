@@ -1,5 +1,5 @@
 import { TSchema, t } from "elysia";
-import { DocumentType, Gender, Profile, Role, SubscriptionType, User } from "@prisma/client";
+import { DocumentType, Gender, Prisma, Profile, Role, SubscriptionType, User } from "@prisma/client";
 
 export const ProfileBodyDTO = t.Object({
     firstname: t.Optional(t.String()),
@@ -66,7 +66,7 @@ export const UserResponseDTO: TSchema = t.Object({
     profileId: t.Optional(t.Nullable(t.String())),
 
     oauth: t.Optional(t.Nullable(t.Any())),
-    authSession: t.Optional(t.Nullable(t.Array(t.Object(t.Any())))),
+    authSession: t.Optional(t.Nullable(t.Array(t.Any()))),
 
     isActive: t.Boolean(),
     isComment: t.Optional(t.Nullable(t.String())),
@@ -105,10 +105,31 @@ export const AutoUserResponseDTO = t.Object({
 })
 
 // Custom type of a User model that includes a Profile relation 😎
-export type UserWithProfile = User & { profile?: Profile|null;}
+export type UserWithProfile = Prisma.UserGetPayload<{
+    include: {
+        profile?: true
+    }
+}>;
+export type ProfileWithUser = Prisma.ProfileGetPayload<{
+    include: {
+        user: {
+            select: {
+                roles: true,
+                emailVerified: true,
+                createdAt: true
+            }
+        },
+        usedCoupons: false,
+        ownedProperty: false,
+        managedProperty: false
+    }
+}>;
+
+
+
 
 // Custom type of a Partial User model that includes a Profile relation 😎
 export type PartialUserWithProfile = Partial<User> & { profile?: Profile|null;}
 
 // Custom type of a Profile model that includes a User Account relation 😎
-export type ProfileWithPartialUser = Profile & { account?: Partial<User>|null;}
+export type ProfileWithPartialUser = Profile & { user?: Partial<User>|null;}

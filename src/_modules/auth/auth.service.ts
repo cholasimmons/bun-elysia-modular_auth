@@ -9,7 +9,6 @@ import { Resend } from "resend";
 import consts from "~config/consts";
 import { UserWithProfile } from "~modules/users/users.model";
 import { getDeviceIdentifier } from "~utils/utilities";
-import { cache } from "~config/redis";
 
 
 class AuthService {
@@ -35,7 +34,24 @@ class AuthService {
     }
 
 
-    
+    // Clean full User object, removing sessions, password, OAuth IDs and profile
+    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
+        const cleanUser: Partial<User> = {
+            id: opts?.id ? user.id : undefined,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            roles: user.roles,
+            email: user.email,
+            emailVerified: opts?.verified ? user.emailVerified : undefined,
+            phone: user.phone,
+            profileId: user.profileId,
+            isActive: opts?.active ? user.isActive : undefined,
+            isComment: opts?.comment ? user.isComment : undefined,
+            createdAt: user.createdAt
+        };
+
+        return cleanUser;
+    }
 
     /**Validate email and password */
     validateCredentials(email:string, password:string, confirmPassword?:string){
@@ -95,7 +111,7 @@ class AuthService {
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    createDynamicSession = async (authMethod:'JWT'|'Cookie', elysia_jwt:any, user:UserWithProfile, headers: Headers, rememberMe?:boolean) => {
+    createDynamicSession = async (authMethod:'JWT'|'Cookie', jwt:any, user:UserWithProfile, headers: Headers, rememberMe?:boolean) => {
         console.debug(`${user.email} attempting log in via ${authMethod}`);
 
         try {
@@ -103,7 +119,7 @@ class AuthService {
                 const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
 
                 // Generate access token (JWT) using logged-in user's details
-                const accessToken = await elysia_jwt.sign({
+                const accessToken = await jwt.sign({
                     id: user.id,
                     firstname: user.firstname,
                     lastname: user.lastname,
@@ -130,7 +146,7 @@ class AuthService {
                 // Invalidate any existing session for this user on the same device
                 if (sameDeviceSession) {
                     await lucia.invalidateSession(sameDeviceSession.id);
-                    // elysia_jwt.sign(null);
+                    // jwt.sign(null);
                 }
 
                 const {id} = await this.createLuciaSession(user.id, headers, user.profile?.id, rememberMe);
@@ -144,23 +160,23 @@ class AuthService {
         }
     }
 
-    async createJWTs(payload: any, elysia_jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
+    async createJWTs(payload: any, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
         const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
 
-        const accessToken = await elysia_jwt.sign(payload, { expiresIn:jwtExpiresIn});
+        const accessToken = await jwt.sign(payload, { expiresIn:jwtExpiresIn});
     
-        const refreshToken = await elysia_jwt.sign(payload, { expiresIn: '1d' });
+        const refreshToken = await jwt.sign(payload, { expiresIn: '1d' });
     
         return { accessToken, refreshToken };
     }
 
-    refreshTokens = async (refreshToken: string, elysia_jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> => {
+    refreshTokens = async (refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> => {
         // Validate the refresh token
-        const payload = await elysia_jwt.verify(refreshToken);
+        const payload = await jwt.verify(refreshToken);
         if (!payload) throw new Error('Invalid refresh token');
     
         // Issue new tokens
-        const newTokens = await this.createJWTs(payload, elysia_jwt, rememberMe);
+        const newTokens = await this.createJWTs(payload, jwt, rememberMe);
         return newTokens;
     }
 

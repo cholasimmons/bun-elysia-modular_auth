@@ -6,8 +6,7 @@ import { checkAuth } from "~middleware/authChecks";
 import { oauth2 } from "elysia-oauth2";
 import { swaggerDetails } from "~utils/response_helper";
 
-const authService = AuthService.getInstance();
-const authController = new AuthController(authService);
+const authController = new AuthController();
 
 export const AuthHandler = new Elysia({
     prefix: '/auth',

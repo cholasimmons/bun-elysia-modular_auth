@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.4.2] - 14-12-2024
+## [0.4.2] - 25-12-2024
 
 ### Added
 
@@ -9,14 +9,21 @@
 - Wallet module can be expanded to communicate with third-party wallet systems, currently this is only a "ledger"
 - Coupons module allows discounts to be issued
 - Messaging module sends messages/notifications to a User from the System or another User
+- Refined Error handling with custom handlers in `_exceptions` folder
+- Event listeners via Redis Message Queuing
 
 ### Fixed
 
 - auth middleware returns `error()` object instead of a custom object, this allows the router responses to not throw errors anymore
+- Elysia 1.1.27 fixes the `.onError()` hook to now properly handle global errors
+
+### Changed
+
+- `Authentication-Method` header changed to `X-Client-Type`
 
 ### Updated
 
-- Elysia, 1.1.26
+- Elysia, 1.1.27
 
 
 ## [0.4.1] - 14-08-2024
