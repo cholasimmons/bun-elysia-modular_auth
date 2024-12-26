@@ -15,6 +15,7 @@ import { splitWords, usernameFromEmail } from "~utils/utilities";
 import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
 import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
+import { PrismaUserWithProfile } from "~modules/users/users.model";
 
 export class AuthController {
     // private authService: AuthService;
@@ -44,7 +45,7 @@ export class AuthController {
         return isBrowser ? Bun.file('public/register.html') : { message: 'Use POST instead'}
     }
 
-    login = async ({ set, request:{headers}, body, jwt, authMethod, cookie:{lucia_auth_cookie}, session }: any) => {
+    login = async ({ set, request:{headers}, body, jwt, authMethod, cookie:{auth_cookie}, session }: any) => {
         const {email, password, rememberme} = body;
         
         try {
@@ -53,7 +54,8 @@ export class AuthController {
             this.authService.validateCredentials(email.toLowerCase(), password)
 
             // find user by Key, and validate password
-            let userExists:any = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
+            let userExists:PrismaUserWithProfile|null = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
+            
             if(!userExists){
                 throw new NotFoundError("Invalid User credentials");
                 // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -98,30 +100,14 @@ export class AuthController {
                 sessions: sessions.length
             }
 
-            // Generate access token (JWT) using logged-in user's details
-            const accessToken = await jwt.sign({
-                id: userExists.id,
-                firstname: userExists.firstname,
-                lastname: userExists.lastname,
-                roles: userExists.roles,
-                emailVerified: userExists.emailVerified,
-                createdAt: userExists.createdAt,
-                profileId: userExists.profile?.id ?? null
-            });
-
-            
-
-            const {id} = await this.authService.createLuciaSession(userExists.id, headers, rememberme);
-            const sessionCookie = lucia.createSessionCookie(id);
-
+            // Publish that a User successfully logged in
             redisMessagingService.publish('user-events', {
                 action: "user_logged-in",
                 user: sanitizedUser
             });
 
             // RAW redis function
-            const rr = await redisSet(`user:${userExists.id}`, sanitizedUser);
-
+            await redisSet(`user:${userExists.id}`, sanitizedUser, 5);
 
             const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, userExists, headers, rememberme);
             if(authMethod === 'JWT'){
@@ -312,7 +298,7 @@ export class AuthController {
         
     }
 
-    async getAllMySessions({set, user}:any){
+    getAllMySessions = async({set, user}:any) => {
         try {
             const sessions = await lucia.getUserSessions(user.id);
 
@@ -351,7 +337,7 @@ export class AuthController {
             await lucia.invalidateUserSessions(user.id);
             await db.user.update({ where: { id: user.id }, data: { emailVerified: true }})
 
-            const session = await this.authService.createLuciaSession(user.id, headers);
+            const session = await this.authService.createLuciaSession(user.id, headers, user.profileId);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
             set.status = HttpStatusEnum.HTTP_302_FOUND;
@@ -382,6 +368,7 @@ export class AuthController {
             return { message: `Verification code sent to ${user.email}` }
         } catch (error) {
             console.error(error);
+            throw error;
 
             set.status = 500;
             return { message: 'Unable to send verification code' }
@@ -395,8 +382,9 @@ export class AuthController {
             const user = await db.user.findUnique({ where:{ email: email }, select: { id: true } });
 
             if(!user){
-                set.status = 404;
-                return { message: 'An account with that email does not exist' }
+                throw new NotFoundError("An account with that email does not exist");
+                // set.status = 404;
+                // return { message: 'An account with that email does not exist' }
             }
 
             const verificationToken = await this.authService.createPasswordResetToken(user.id);
@@ -405,15 +393,15 @@ export class AuthController {
             this.authService.sendPasswordResetToken(email, verificationLink);
 
             set.status = 200;
-            return { message: `A password reset link has been sent to your email.\n Expires in 30 minutes` };
+            return { message: `Password reset link sent to your email.\n Validity: 30 minutes` };
         } catch (e) {
-            
+            throw e
         }
     }
 
 
 
-    async getResetPassToken({ set, request:{headers}, params:{token} }:any) {
+    getResetPassToken = async({ set, request:{headers}, params:{token} }:any) => {
         set.status = 200;
         return { message: 'This route should take you to the app\'s page for password resetting' }
         

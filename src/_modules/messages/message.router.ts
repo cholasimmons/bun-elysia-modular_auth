@@ -40,7 +40,7 @@ export const MessageRouter = new Elysia({ prefix: '/messages',
 
 
     .post('/send', messages.sendMessage, {
-        // beforeHandle: [ checkIsAdmin || checkIsStaff ],
+        beforeHandle: [ checkForProfile ],
         body: CreateMessageDTO,
         query: MessageQueriesDTO,
         response: {

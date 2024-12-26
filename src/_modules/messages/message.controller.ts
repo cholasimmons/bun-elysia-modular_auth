@@ -2,7 +2,6 @@ import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { MessageService, ICreateMessage } from ".";
 import { db } from "~config/prisma";
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError, PrismaClientValidationError } from "@prisma/client/runtime/library";
-import { CasesService } from "~modules/cases";
 import { Coupon, Message } from "@prisma/client";
 
 export class MessageController {

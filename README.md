@@ -13,8 +13,8 @@
 - Swagger documentation
 - CRON with predefined 24 hour cycle
 - basic endpoint logging
-- global error logging
-- authentication/authorization middleware (public/private routes based on roles)
+- global error logging & handling
+- authentication/authorization middleware (public/private routes based on user roles)
 - email verification system
 - change/reset password
 - custom response model
@@ -22,6 +22,7 @@
 - Data Access Layer methodology
 - S3 File Storage service
 - In-memory cache for rapid data retrieval
+- Event queuing
 
 
 
@@ -58,7 +59,7 @@ This auth system uses cookies and JWT's.
 The cookie name along with other configuration settings can be set in the typescript file `src/_config/consts.ts`.
 
 ### **Client Headers**
-The headers sent from your client must specify `Authentication-Method` with either `JWT` or `Cookie`
+The headers sent from your client must specify `X-Client-Type` with either `JWT` or `Cookie`
 
 
 # App Expansion
@@ -88,7 +89,10 @@ From the root directory, run this code (Note: you need to have [Docker]('https:/
 ```bash
 docker build --pull -t bun-hello-world .
 ```
-The `-t` flag lets us specify a name for the image, and `--pull` tells Docker to automatically download the latest version of the base image (oven/bun). The initial build will take longer, as Docker will download all the base images and dependencies.
+The `-t` flag lets us specify a name for the image, and `--pull` tells Docker to automatically download the latest version of the base image (oven/bun). The initial build will take longer, as Docker will download all the base images and dependencies. The image will be based off the current OS you are building from. To build for a specific platform - Arm64 Linux for example, use the following:
+```bash
+docker buildx build --pull --platform linux/arm64 -t bun-hello-world .
+```
 
 ## Run docker container
 You can now run the image by running this code:
@@ -101,3 +105,15 @@ The `docker run` command starts a new container using the "bun-hello-world" imag
 Visit [localhost:3000/v1]('http://localhost:3000/v1') You should see a "Hello World" welcome message.
 
 To stop the container, we'll use docker stop <container-id>. If you can't find the container ID, you can use `docker ps` to list all running containers.
+
+## Push docker container to registry
+You can now push your newly built image to the cloud by running this code:
+```bash
+docker push <dockerhub-username>/bun-hello-world:slim
+
+```
+or to first change it's local tag name to the online one, type:
+```bash
+docker tag <local-image-name> <dockerhub-username>/bun-hello-world:slim
+
+```

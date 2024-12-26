@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import Elysia from "elysia";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
+import { AuthenticationError } from "src/_exceptions/custom_errors";
 import { lucia } from "~config/lucia";
 import { db } from "~config/prisma";
 
@@ -64,7 +65,7 @@ export const checkEmailVerified = async ({ user, error }:any) => {
 
   if(!user.emailVerified){
     // set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-    return error(403, 'Your account is not email verified.');
+    return error(403, 'You are not email verified.');
   }
 }
 
@@ -90,8 +91,12 @@ export const checkIsStaff = async ({ user, error }:any) => {
 }
 
 // checks if current User has an active profile
-export const checkForProfile =  async ({ user, error }: any) => {
+export const checkForProfile =  async ({ user, session, error }: any) => {
   const { isActive, profileId, profileIsActive } = user ?? {};
+
+  console.log(user);
+  // console.log(session);
+  
   
   // if (!user || !isActive) {
   //   set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;

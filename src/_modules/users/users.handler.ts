@@ -57,8 +57,7 @@ export const UsersHandler = new Elysia({
     })
 
 
-    .get('/profile', users.getProfileByUserId,{
-        
+    .get('/profile', users.getMyProfile,{
         query: t.Object({ ...profileQueriesDTO }),
         response: {
             200: t.Object({ data: ProfileResponseDTO, message: t.String({ default:'Successfully retrieved your User Profile' }) }),
@@ -105,7 +104,7 @@ export const UsersHandler = new Elysia({
     // Get Current logged in User's active status [SELF]
     .get('/status/user', users.getAccountStatus, {
         response: {
-            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Successfully retrieved User Account status' }) }),
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Retrieved User Account status' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch User\'s Active status' }) })
         },
@@ -114,14 +113,37 @@ export const UsersHandler = new Elysia({
 
     // Get User's active status by userId [STAFF]
     .get('/status/user/:userId', users.getAccountStatus, {
-        // beforeHandle: [checkIsStaff],
+        beforeHandle: [checkIsStaff || checkIsAdmin],
         params: t.Object({ userId: t.String() }),
         response: {
-            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Successfully retrieved User Account status' }) }),
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Retrieved User Account status' }) }),
             404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not fetch User\'s Active status' }) })
         },
-        detail: swaggerDetails('Get User Account Status by ID [Staff]', 'Fetch User\'s Account status by their userId param (Staff only)')
+        detail: swaggerDetails('Get User Account Status by ID [Staff]', 'Fetch User\'s Account status by their userId param [Staff]')
+    })
+
+    // Get Current logged in User's Profile status [SELF]
+    .get('/status/profile', users.getProfileStatus, {
+        beforeHandle: [ checkForProfile ],
+        response: {
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Retrieved User Profile status' }) }),
+            // 404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
+            500: t.Object({ message: t.String({ default: 'Could not fetch your Profile status' }) })
+        },
+        detail: swaggerDetails('Get my Profile Status', 'Fetches your Profile status')
+    })
+
+    // Get User's Profile status by userId [STAFF]
+    .get('/status/profile/:userId', users.getProfileStatus, {
+        beforeHandle: [checkIsStaff || checkIsAdmin],
+        params: t.Object({ userId: t.String() }),
+        response: {
+            200: t.Object({ data: t.BooleanString(), message: t.String({ default: 'Retrieved User Profile status' }) }),
+            404: t.Object({ message: t.String({ default: 'User with that ID not found' }) }),
+            500: t.Object({ message: t.String({ default: 'Could not fetch Profile status' }) })
+        },
+        detail: swaggerDetails('Get User Profile Status by ID [Staff]', 'Fetches User\'s Profile status by UserId param [Staff]')
     })
 
 
@@ -130,12 +152,12 @@ export const UsersHandler = new Elysia({
 
     // Create new User Profile [SELF]
     .post('/profile', users.createNewProfile,{
-        beforeHandle: [checkEmailVerified],
+        beforeHandle: [ checkEmailVerified ],
         body: ProfileBodyDTO,
         response: {
             201: t.Object({ data: ProfileResponseDTO, message: t.String({ default: 'Successfully created new User Profile' }) }),
             302: t.Object({ message: t.String({ default: 'A profile already exists with those credentials'}) }),
-            403: t.Object({ message: t.String({ default: 'Your account is not verified.'}) }),
+            403: t.Object({ message: t.String({ default: 'You are not email verified.', error: 'Email verification required'}) }),
             406: t.Object({ message: t.String({ default: 'Your submission was not valid.'}) }),
             409: t.Object({ message: t.String({ default: 'You already have a profile'}) }),
             500: t.Object({ message: t.String({ default: 'Problem processing profile submission.'}) })

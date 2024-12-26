@@ -7,21 +7,15 @@ import { db } from "~config/prisma";
 import { lucia } from "~config/lucia";
 import { Resend } from "resend";
 import consts from "~config/consts";
-import { UserWithProfile } from "~modules/users/users.model";
+import { PrismaUserWithProfile } from "~modules/users/users.model";
 import { getDeviceIdentifier } from "~utils/utilities";
 
 
 class AuthService {
     private static instance: AuthService;
-
-    // private today?: Date;
-    // today.setHours(0, 0, 0, 0); // Set time to midnight to represent the start of today
-    // private oneDayAgo?: Date;
     private resend: Resend;
 
     constructor(){
-        // this.today = this.oneDayAgo = new Date();
-        // this.oneDayAgo.setDate(this.oneDayAgo.getDate() - 1);
         this.resend = new Resend(String(Bun.env.RESEND_API_KEY));
     }
 
@@ -82,7 +76,7 @@ class AuthService {
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    async createLuciaSession(userId:string, headers: Headers, profileId?: string, rememberMe?:boolean):Promise<Session>{
+    async createLuciaSession(userId:string, headers: Headers, profileId?: string|null, rememberMe?:boolean):Promise<Session>{
         // const userAgent = headers.get('user-agent');
         // const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
 
@@ -91,7 +85,7 @@ class AuthService {
 
         const os = headers.get('os') ?? 'Unknown';
         // const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
-        const authMethod = headers.get('Authentication-Method') ?? "Unknown";
+        const authMethod:string = headers.get('X-Client-Type') ?? "Unknown";
         const ipCountry = headers.get('ipCountry') ?? "Unknown";
 
         const deviceIdentifier = getDeviceIdentifier(headers);
@@ -106,13 +100,21 @@ class AuthService {
             expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
             activeExpires: Date.now() + ( 1000 * 60 * (rememberMe ? 60 : 1)),
             deviceIdentifier: deviceIdentifier,
-            method: authMethod
+            authType: authMethod
         })
     }
 
-    // Encodes user data and creates auth session via Lucia Auth v3
-    createDynamicSession = async (authMethod:'JWT'|'Cookie', jwt:any, user:UserWithProfile, headers: Headers, rememberMe?:boolean) => {
-        console.debug(`${user.email} attempting log in via ${authMethod}`);
+    /** Dynamic Auth Session (JWT|Cookie)
+     * Encodes user data and creates auth session via Lucia Auth v3
+     * */ 
+    createDynamicSession = async (
+        authMethod:'JWT'|'Cookie',
+        jwt:any,
+        user:Partial<User>,
+        headers: Headers,
+        rememberMe?:boolean
+    ) => {
+        console.debug(`[AuthService] ${user.email} attempting log in via ${authMethod}`);
 
         try {
             if(authMethod === 'JWT'){
@@ -127,9 +129,11 @@ class AuthService {
                     roles: user.roles,
                     emailVerified: user.emailVerified,
                     createdAt: user.createdAt,
-                    profileId: user.profile?.id ?? null
+                    profileId: user.profileId ?? null
                 }, { expiresIn:jwtExpiresIn});
-                await this.createLuciaSession(user.id, headers, user.profile?.id, rememberMe);
+
+                await this.createLuciaSession(user.id!, headers, user?.profileId ?? null, rememberMe);
+
                 return accessToken;
             } else if (authMethod === 'Cookie'){
 
@@ -149,14 +153,14 @@ class AuthService {
                     // jwt.sign(null);
                 }
 
-                const {id} = await this.createLuciaSession(user.id, headers, user.profile?.id, rememberMe);
+                const {id} = await this.createLuciaSession(user.id!, headers, user?.profileId ?? null, rememberMe);
                 const sessionCookie = lucia.createSessionCookie(id);
                 return sessionCookie;
             }
         } catch (error) {
             console.error(error);
             
-            throw "Could not create dynamic session";
+            throw error;
         }
     }
 
@@ -170,7 +174,7 @@ class AuthService {
         return { accessToken, refreshToken };
     }
 
-    refreshTokens = async (refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> => {
+    async refreshTokens(refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
         // Validate the refresh token
         const payload = await jwt.verify(refreshToken);
         if (!payload) throw new Error('Invalid refresh token');

@@ -17,10 +17,10 @@ export const ProfileResponseDTO: TSchema = t.Object({
     id: t.String(),
     bio: t.Optional(t.Nullable(t.String())),
     userId: t.Optional(t.Nullable(t.String())),
-    user: t.Optional(t.Nullable(t.Object(t.Any()))),
+    user: t.Optional(t.Nullable(t.Any())),
     documentId: t.String({maxLength: 12}),
     documentType: t.Enum(DocumentType),
-    photoId: t.Optional(t.Nullable(t.String())),
+    photo: t.Optional(t.Nullable(t.String())),
     gender: t.Enum(Gender),
 
     firstname: t.String(),
@@ -30,7 +30,10 @@ export const ProfileResponseDTO: TSchema = t.Object({
 
     supportLevel: t.Number(),
     subscriptionType: t.Enum(SubscriptionType),
-    subscription: t.Optional(t.Nullable(t.Object(t.Any()))),
+    subscription: t.Optional(t.Nullable(t.Any())),
+
+    wallet: t.Optional(t.Any()),
+    usedCoupons: t.Optional(t.Nullable(t.Array(t.MaybeEmpty(t.Any())))),
 
     isActive: t.Boolean(),
     isComment: t.Optional(t.Nullable(t.String())),
@@ -75,7 +78,9 @@ export const UserResponseDTO: TSchema = t.Object({
 })
 
 export const profileQueriesDTO = {
-    account: t.Optional(t.BooleanString({ default: false })),
+    account: t.Optional(t.Boolean({ default: false })),
+    subscription: t.Optional(t.Boolean({ default: false })),
+    usedCoupons: t.Optional(t.Boolean({ default: false })),
 }
 export const userQueriesDTO = {
     isActive: t.Optional(t.BooleanString()),
@@ -105,7 +110,12 @@ export const AutoUserResponseDTO = t.Object({
 })
 
 // Custom type of a User model that includes a Profile relation 😎
-export type UserWithProfile = Prisma.UserGetPayload<{
+export type PrismaUserWithProfile = Prisma.UserGetPayload<{
+    include: {
+        profile: true
+    }
+}>;
+export type PrismaUserWithOptionalProfile = Prisma.UserGetPayload<{
     include: {
         profile?: true
     }
@@ -119,9 +129,7 @@ export type ProfileWithUser = Prisma.ProfileGetPayload<{
                 createdAt: true
             }
         },
-        usedCoupons: false,
-        ownedProperty: false,
-        managedProperty: false
+        usedCoupons: false
     }
 }>;
 
@@ -133,3 +141,27 @@ export type PartialUserWithProfile = Partial<User> & { profile?: Profile|null;}
 
 // Custom type of a Profile model that includes a User Account relation 😎
 export type ProfileWithPartialUser = Profile & { user?: Partial<User>|null;}
+
+// Custom type of a Profile model that includes a "safe" User Account relation (no sensitive data) 😎
+export type ProfileWithSafeUser = Prisma.ProfileGetPayload<{
+    include: {
+        user: {
+            select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                username: true,
+                roles: true,
+                email: true,
+                phone: true,
+                emailVerified: true,
+                createdAt: true,
+                updatedAt: true,
+                profileId: true
+            }
+        }
+    }
+}>
+export type ProfileWithSafeUserModel = Profile & {
+    user?: Partial<User>|null
+};

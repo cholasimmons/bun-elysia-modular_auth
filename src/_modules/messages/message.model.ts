@@ -16,8 +16,8 @@ export const CreateMessageDTO = t.Object({
     recipientId: t.String(),
     title: t.String(),
     message: t.String(),
-    priority: t.Enum(MessagePriority),
-    deliveryMethods: t.Enum(MessageDelivery)
+    priority: t.Optional(t.Enum(MessagePriority)),
+    deliveryMethods: t.Array(t.Enum(MessageDelivery))
 })
 
 export const ViewMessageDTO = t.Object({

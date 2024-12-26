@@ -1,10 +1,10 @@
-import { NotFoundError } from "elysia";
 import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
 import { redisGet, redisSet } from "~config/redis";
-import { ProfileWithPartialUser, UserWithProfile } from "./users.model";
+import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUser, ProfileWithSafeUserModel } from "./users.model";
+import { InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
 
 
 
@@ -49,9 +49,9 @@ export class UsersService {
     }
 
     // Returns a unique User from the DB with particular ID string
-    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<UserWithProfile> {
+    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<PrismaUserWithOptionalProfile> {
         try {
-            let user: UserWithProfile|null = await redisGet<UserWithProfile|null>(`user:${userId}`);
+            let user: PrismaUserWithOptionalProfile|null = await redisGet<PrismaUserWithOptionalProfile|null>(`user:${userId}`);
 
             if(!user){
                 user = await db.user.findUnique({
@@ -64,7 +64,7 @@ export class UsersService {
 
                 if(!user) throw new NotFoundError('Could not find user with that ID');
 
-                let cleanUser: UserWithProfile|any = { ...user}
+                let cleanUser: PrismaUserWithOptionalProfile|any = { ...user}
                 delete cleanUser.hashedPassword;
 
                 await redisSet(`user:${userId}`, cleanUser);
@@ -77,52 +77,83 @@ export class UsersService {
         }
     }
 
-    async createUserProfile(data: any): Promise<Profile> {
+    async createUserProfile(data: any): Promise<ProfileWithSafeUserModel> {
         const { firstname, lastname, documentId, documentType, gender, bio, email, phone,
-            supportLevel, userId, photoId } = data;
+            supportLevel, userId, photo } = data;
         try {
             // console.log("Received User Profile data: ",data);
-            
-            let freshUser:any = await db.user.update({
-                where:{
-                    id: userId
+
+            // 1. Create the Profile
+            const newProfile: Profile|null = await db.profile.create({
+                data: {
+                    firstname, lastname,
+                    documentId, documentType,
+                    gender, bio,
+                    email, phone,
+                    supportLevel,
+                    photo,
+                    subscriptionType: SubscriptionType.FREE
                 },
-                data:{
-                    profile: {
-                        create: {
-                            firstname, lastname, documentId, documentType, gender, bio, email, phone, supportLevel, photoId, subscriptionType: SubscriptionType.FREE,
-                        }
-                    }
-                },
+            });
+
+            // 2. Update the User with profileId
+            const userWithProfile: PrismaUserWithProfile|null = await db.user.update({
+                where: { id: userId },
+                data: { profileId: newProfile.id },
                 include: { profile: true }
-            })
+            });
+            
+            // let freshUser:PrismaUserWithProfile|null = await db.user.update({
+            //     where:{
+            //         id: userId
+            //     },
+            //     data:{
+            //         firstname: firstname,
+            //         lastname: lastname,
+            //         phone: phone,
+            //         profile: {
+            //             create: {
+            //                 firstname, lastname,
+            //                 documentId, documentType,
+            //                 gender, bio,
+            //                 email, phone,
+            //                 supportLevel,
+            //                 photo,
+            //                 subscriptionType: SubscriptionType.FREE,
+            //             }
+            //         }
+            //     },
+            //     include: { profile: true }
+            // })
 
-            delete freshUser.hashedPassword;
-
-            if(!freshUser.profileId){
-                throw 'Could not update User with new User Profile'
+            if(!userWithProfile.profile){
+                throw new InternalServerError('Could not update User with new User Profile')
             }
 
-            // return user object without sensitive data
-            const returnSafeUser = {
-                ...freshUser.profile,
-                user:{
-                    id: freshUser.id,
-                    firstname: freshUser.firstname,
-                    lastname: freshUser.lastname,
-                    username: freshUser.username,
-                    roles: freshUser.roles,
-                    email: freshUser.email,
-                    emailVerified: freshUser.emailVerified,
-                    createdAt: freshUser.createdAt,
-                    updatedAt: freshUser.updatedAt,
-                    profileId: freshUser.profile.id
+            // return Profile with user object WITHOUT sensitive data
+            const returnSafeUserProfile: ProfileWithSafeUserModel|any = {
+                ...userWithProfile.profile,
+                // gender: String(freshUser.profile?.gender),
+                user: {
+                    id: userWithProfile.id!,
+                    firstname: userWithProfile.firstname,
+                    lastname: userWithProfile.lastname,
+                    username: userWithProfile.username,
+                    phone: userWithProfile.phone ?? null,
+                    roles: userWithProfile.roles,
+                    email: userWithProfile.email,
+                    emailVerified: userWithProfile.emailVerified,
+                    createdAt: userWithProfile.createdAt,
+                    updatedAt: userWithProfile.updatedAt,
+                    profileId: userWithProfile.profileId ?? null,
+                    isActive: userWithProfile.isActive,
+                    isComment: userWithProfile.isComment
                 } 
             }
 
-            await redisSet(`profile:user:${freshUser.id}`, freshUser.profile, 7200)
+            await redisSet(`profile:user:${userWithProfile.id}`, returnSafeUserProfile, 3)
 
-            return returnSafeUser as Profile;
+            return returnSafeUserProfile as ProfileWithSafeUserModel;
         } catch(e) {
             console.error("Could not persist new profile");
             throw e
@@ -206,33 +237,42 @@ export class UsersService {
     }
 
 
-    async getProfileByUserId(userId:string, opts?:{ account:boolean }){
+    async getProfileByUserId(userId:string, query?:{ account?:boolean, subscription?: boolean, usedCoupons?:boolean }){
         try {
-            let cachedProfile = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);
+            let cachedProfile: ProfileWithPartialUser|null = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);
+
+            // dynamic setting to retrieve user object
+            const includeUser = query?.account
+            ? {
+                select: {
+                    id: true,
+                    firstname: true,
+                    lastname: true,
+                    username: true,
+                    roles: true,
+                    email: true,
+                    emailVerified: true,
+                    phone: true,
+                    isActive: true,
+                    isComment: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            } : false 
+            
 
             if(!cachedProfile){
-                cachedProfile = await db.profile.findUnique({ where: { userId: userId }, include: {
-                    user: opts?.account ? {
-                        select: {
-                            id: true,
-                            firstname: true,
-                            lastname: true,
-                            username: true,
-                            roles: true,
-                            email: true,
-                            emailVerified: true,
-                            phone: true,
-                            isActive: true,
-                            isComment: true,
-                            createdAt: true,
-                            updatedAt: true,
-                        }
-                    } : false
-                }});
+                cachedProfile = await db.profile.findUnique({ where: { userId: userId },
+                    include: {
+                        user: includeUser,
+                        subscription: query?.subscription ?? false,
+                        usedCoupons: query?.usedCoupons ?? false
+                    }
+                });
 
-                if(!cachedProfile) throw new NotFoundError(`Profile for User: ${userId} unavailable in database`);
+                if(!cachedProfile) throw new NotFoundError(`Profile for User: ${userId} unavailable.`);
 
-                await redisSet(`profile:user:${userId}`, cachedProfile)
+                await redisSet(`profile:user:${userId}`, cachedProfile, 1)
             }            
 
             return cachedProfile;

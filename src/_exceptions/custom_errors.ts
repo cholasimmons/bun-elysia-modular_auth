@@ -8,7 +8,7 @@ class AuthenticationError extends Error{
     status: number;
 
     constructor(public message: string, status: number = 401, cause?: string){
-        super(message, { cause });
+        super(message, { cause: cause });
         this.status = status;
         this.name = this._tag;
     }
@@ -22,10 +22,9 @@ class AuthorizationError extends Error{
     status: number;
 
     constructor(public message: string = "You do not have permission to perform this action", status: number = 403, cause?: string){
-        super(message, { cause });
+        super(message, { cause: cause });
         this.name = this._tag;
         this.status = status;
-        this.cause = cause;
     }
 }
 
@@ -75,10 +74,13 @@ class FinancialError extends Error{
  * Message related error such as sending/receiving...
  */
 class MessagingError extends Error{
-    constructor(message: string, cause?: string){
-        super(message);
-        this.name = "MessagingError";
-        this.cause = cause;
+    readonly _tag = "MessagingError";
+    status: number;
+    
+    constructor(public message: string, status: number = 500, cause?: string){
+        super(message, { cause: cause });
+        this.name = this._tag;
+        this.status = status;
     }
 }
 

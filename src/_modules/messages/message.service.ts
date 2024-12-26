@@ -10,7 +10,7 @@ export class MessageService {
 
     // Create a new message
     async createMessage(body: ICreateMessage, profileId?:string): Promise<Message> {
-        const { senderId, recipientId, title, message, priority, deliveryMethods } = body;
+        const { recipientId, title, message, priority, deliveryMethods } = body;
 
         try {
             const payload: Message|null = await db.message.create({

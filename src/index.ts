@@ -48,8 +48,10 @@ try {
       detail: { description: `${consts.server.name} Server API` }
     })
 
-    // Error Handling
+        
+    // Error Handling. Loads early up the vine
     .onError(errorMessages)
+
     
     // State
     .state('maintenanceMode', Bun.env.MAINTENANCE_MODE === 'true' || false)
@@ -77,7 +79,7 @@ try {
       methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH'],
       credentials: true,
       origin: /localhost.*/,
-      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'Authentication-Method', 'X-Client-Type' ]
+      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'X-Client-Type' ]
     }))
 
     // Helmet security (might conflict with swagger)
@@ -153,6 +155,7 @@ try {
 
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
+    
     .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
     .mapResponse(customResponse)
     .onStop(gracefulShutdown);
