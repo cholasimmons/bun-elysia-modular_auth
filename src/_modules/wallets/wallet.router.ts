@@ -32,13 +32,13 @@ export const WalletsRouter = new Elysia({ prefix: '/wallet',
 
     // Get a single User's wallet by ID. [ADMIN]
     .get('/:profileId', wallet.getById, {
-        beforeHandle: [checkIsAdmin || checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         query: WalletQueriesDTO,
         params: t.Object({ profileId: t.String() }),
         response: {
-            200: t.Object({ data: ViewWalletDTO, message: t.String({ default: 'Successfully loaded wallet' }) }),
+            200: t.Object({ data: ViewWalletDTO, message: t.String({ default: 'Wallet retrieved' }) }),
             404: t.Object({ message: t.String({ default: 'No wallet found' }) }),
-            500: t.Object({ message: t.String({ default: 'Something went wrong fetching the wallets' }) })
+            500: t.Object({ message: t.String({ default: 'Something went wrong fetching wallets' }) })
         }
     })
 
@@ -46,11 +46,10 @@ export const WalletsRouter = new Elysia({ prefix: '/wallet',
     .get('/', wallet.getMine, {
         beforeHandle: [],
         query: WalletQueriesDTO,
-        // params: t.Object({ self: t.Boolean() }),
         response: {
-            200: t.Object({ data: ViewWalletLiteDTO, message: t.String({ default: 'Successfully loaded wallet' }) }),
+            200: t.Object({ data: ViewWalletDTO, message: t.String({ default: 'Wallet retrieved' }) }),
             206: t.Object({ message: t.String({ default: 'No wallet found' }) }),
-            403: t.Object({ message: t.String({ default: 'Wallet is disabled' }) }),
+            // 403: t.Object({ message: t.String({ default: 'Wallet is unavailable' }), error: t.String({ default: "Do you have an active profile?" }) }),
             404: t.Object({ message: t.String({ default: 'Expected Parameter missing' }) }),
             500: t.Object({ message: t.String({ default: 'Error with wallet' }) })
         }
@@ -85,14 +84,14 @@ export const WalletsRouter = new Elysia({ prefix: '/wallet',
         // body: t.Object(CreateWalletDTO),
         response: {
             201: t.Object({ data: ViewWalletDTO, message: t.String({ default: 'User Wallet successfully created' }) }),
-            409: t.Object({ message: t.String({ default: 'Wallet already exists' }) }),
+            409: t.Object({ message: t.String({ default: 'Wallet already exists' }), note: t.String() }),
             500: t.Object({ message: t.String({ default: 'Unable to create new wallet' }) })
         }
     })
 
     // Create a new User Wallet (Must have profile) [ADMIN | STAFF]
     .post('/:profileId', wallet.createWallet, {
-        beforeHandle: [checkIsAdmin || checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         params: t.Object({ profileId: t.String() }),
         body: t.Object(CreateWalletDTO),
         response: {
@@ -113,6 +112,10 @@ export const WalletsRouter = new Elysia({ prefix: '/wallet',
             500: t.Object({ message: t.String({ default: 'Unable to make payment' }) })
         }
     })
+
+
+    /* PATCH */
+
 
     // Disable wallet [SYSTEM]
     .patch('/:profileId', wallet.lockWallet, {

@@ -57,7 +57,7 @@ export class AuthController {
             let userExists:PrismaUserWithProfile|null = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
             
             if(!userExists){
-                throw new NotFoundError("Invalid User credentials");
+                throw new NotFoundError("Invalid credentials");
                 // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
                 // return { message: 'Invalid User credentials' };
             }
@@ -65,7 +65,7 @@ export class AuthController {
             const isMatch = await Bun.password.verify(password, userExists.hashedPassword);
 
             if(!isMatch){
-                throw new NotFoundError("Invalid credentials");
+                throw new AuthenticationError("Invalid login credentials");
                 // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
                 // return { message: 'Invalid credentials' };
             }

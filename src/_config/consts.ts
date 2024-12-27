@@ -21,6 +21,9 @@ const consts = {
         minLength: 9,
         maxLength: 11
     },
+    transactions: {
+        fee: 10
+    },
     images:{
         main:{ width: 1280, height: 1280, quality: 84},
         thumbnail:{ width: 320, height: 320, quality: 55 },

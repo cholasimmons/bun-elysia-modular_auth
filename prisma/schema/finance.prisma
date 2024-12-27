@@ -4,7 +4,7 @@
 
 model Wallet {
   id            String              @id @unique @default(uuid())
-  userProfileId String?             @unique @map("user_profile_id")
+  userProfileId String              @unique @map("user_profile_id")
   balance       Decimal             @default(0.00) @db.Money
   currency      Currency            @default(ZMW)
   isActive      Boolean             @default(true) @map("is_active")
@@ -12,7 +12,7 @@ model Wallet {
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
   transactions  WalletTransaction[] @relation("wallet_transactions")
-  userProfile   Profile?            @relation("user_wallet", fields: [userProfileId], references: [id])
+  userProfile   Profile             @relation("user_wallet", fields: [userProfileId], references: [id])
 
   @@index([userProfileId])
   @@map("wallets")

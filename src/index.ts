@@ -69,8 +69,14 @@ try {
       info: {
           title: `${consts.server.name}`,
           version: `${consts.server.version}`,
-          description: `Server API for ${consts.server.name}`
-      }},
+          description: `Server API for ${consts.server.name}`,
+          contact: {
+            name: "Frank Simmons",
+            email: "frank@simmons.studio"
+          }
+      },
+      
+    },
     }))
 
     // CORS security
@@ -150,7 +156,6 @@ try {
 
     // Get IP of client and add to context
     // .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "requestIP", "Authentication-Method"] }))
-
 
 
     // Life cycles

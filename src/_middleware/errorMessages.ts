@@ -9,12 +9,17 @@ import { CustomError } from "src/_modules/root/app.models";
   
   function handleNotFoundError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-    return { message: error.message ?? 'Resource not found', code: set.status, note: 'Resource not found' };
+    return { code: error.status ?? set.status, message: error.message ?? 'Resource not found', note: error.cause ?? 'Resource not found' };
   }
   
   function handleInternalServerError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { message: error.message ?? 'Internal Server Error ⚠️', code: set.status, error: error.name };
+  }
+    
+  function handleError(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: error.status ?? set.status, message: 'Internal Server Error ⚠️', error: error.cause ?? error.message  };
   }
   
   function handleValidation(error: CustomError, set: any) {
@@ -120,6 +125,8 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleValidation(error, set);
       case 'NotFoundError':
         return handleNotFoundError(error, set);
+      // case 'Error':
+      //   return handleError(error, set);
     }
 
     switch (code) {

@@ -20,12 +20,12 @@ const initializeUserEventListeners = () => {
     const user = event.user as Partial<User | Profile>;
 
     if (event.action === "user_registered") {
-        console.log(`New user registered: ${user.firstname} ${user.lastname}`);
+        console.debug(`[EVENT] New user registered: ${user.firstname} ${user.lastname}`);
         // Run user registration logic
     }
   
     if (event.action === "user_logged-in") {
-        console.log(`User logged in: ${user.email}`);
+        console.debug(`[EVENT] User logged in: ${user.email}`);
     }
 
     if (event.action === "user_deleted") {

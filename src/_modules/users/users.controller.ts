@@ -187,7 +187,7 @@ export class UsersController {
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: profile, message: 'Successfully retrieved your User Profile' };
         } catch(e) {
-            console.warn(e);
+            // console.warn(e);
 
             throw e;
         }

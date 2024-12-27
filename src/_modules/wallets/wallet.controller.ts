@@ -2,7 +2,8 @@ import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { WalletService } from "~modules/wallets";
 import { db } from "~config/prisma";
 import { Currency, Wallet } from "@prisma/client";
-import { NotFoundError } from "elysia";
+import { AuthorizationError, ConflictError, InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
+import { WalletWithOptionalChildren } from "./wallet.model";
 
 
 export class WalletController {
@@ -47,48 +48,56 @@ export class WalletController {
         // return walletService.get(ctx);
     }
 
-    async getById({ set, params:{ paramProfileId }, query:{ transactions, userProfile } }: any){
+    getById = async({ set, params:{ profileId }, query:{ transactions, profile } }: any) => {
 
         try {
-            const wallet:Wallet|null = await this.walletService.getWalletByID(paramProfileId, transactions, userProfile)
+            const wallet:WalletWithOptionalChildren|null = await this.walletService.getWalletByID(profileId, {transactions, profile})
 
             if(!wallet) {
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'No wallet found' };
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'No wallet found' };
+                throw new NotFoundError("No wallet found");
             }
             
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: wallet, message: 'Successfully loaded wallet' };
         } catch (error:any) {
             console.error(error);
+
+            throw error;
             
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: error.message };
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: error.message };
         }
     }
 
-    async getMine({ set, user:{ profileId }, query: { transactions, userProfile } }: any):Promise<{data:Wallet, message:string}|{message:string}>{
+    getMine = async({ set, user:{ profileId }, query: { transactions, profile } }: any):Promise<{data:WalletWithOptionalChildren, message:string}|{message:string}> => {
 
         try {
-            const wallet: Wallet|null = await this.walletService.getWalletByID(profileId, transactions, userProfile)
+            const wallet: WalletWithOptionalChildren|null = await this.walletService.getWalletByID(profileId, {transactions, profile})
 
             if(!wallet) {
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'No wallet found' };
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'No wallet found' };
+                throw new NotFoundError("No wallet found");
             }
 
             if(!wallet.isActive) {
-                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-                return { message: `Your Wallet is disabled. ${wallet.isComment ?? ''}` };
+                // set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+                // return { message: `Your Wallet is disabled. ${wallet.isComment ?? ''}` };
+                throw new AuthorizationError(`Wallet is disabled.. ${wallet.isComment ?? ''}`);
             }
 
             
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: wallet, message: 'Successfully retrieved your Wallet'};
+            return { data: wallet, message: 'Wallet retrieved'};
         } catch (error:any) {
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            console.error(error);
-            return { message: 'Error with wallet. '+error.code.toString() }
+            console.error("Get my wallet Error.", error);
+
+            throw error;
+
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+            // return { message: 'Error with wallet. '+error.code.toString() }
         } 
 
         // const profile = await usersService.getProfileById(userSession.user.userId);
@@ -120,17 +129,18 @@ export class WalletController {
     }
 
 
-    async createWallet({ set, user:{ profileId }, params:{ paramProfileId }, state }:any):Promise<{data: Wallet, message: string }|{message:string}>{
-        const id = paramProfileId ?? profileId;
+    async createWallet({ set, user, params:{ profileId } }:any):Promise<{data: Wallet, message: string }|{message:string}>{
+        const id = profileId ?? user?.profileId;
 
         try {
             const newWallet: Wallet|null = await this.walletService.create(id, {initialBalance: 0, currency: Currency.ZMW});
 
             if(!newWallet){
-                throw 'Unable to create new wallet'
+                throw new InternalServerError('Unable to create new wallet')
             };
 
-            state = { wallet: { balance: newWallet.balance, currency: newWallet.currency, timestamp: Date.now() } };
+            // TODO: Add wallet balance and currency to context
+            // state = { wallet: { balance: newWallet.balance, currency: newWallet.currency, timestamp: Date.now() } };
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return { data: newWallet, message: `Wallet created: (${newWallet.currency} ${newWallet.balance})` };
@@ -138,29 +148,26 @@ export class WalletController {
         } catch (error:any) {
             console.error(error);
 
-            if(error instanceof NotFoundError){
+            if(error instanceof ConflictError){ // error instanceof PrismaClientKnownRequestError
                 set.status = HttpStatusEnum.HTTP_409_CONFLICT
-                return { message:'Wallet already exists for this User' };
-            }
-
-            if(false){ // error instanceof PrismaClientKnownRequestError
-                set.status = HttpStatusEnum.HTTP_409_CONFLICT
-                return { message:'Unable to create new wallet. User already has a wallet.' };
+                return { message:'Unable to create new wallet.' };
             }
             
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: 'Unable to create new wallet' }
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+            // return { message: 'Unable to create new wallet' }
+
+            throw error;
         }
     }
 
-    async createWalletWithBalance({ set, user:{ profileId }, params:{ paramProfileId }, body:{ initialBalance, currency } }:any){
-        const id = paramProfileId ?? profileId;
+    async createWalletWithBalance({ set, user, params:{ profileId }, body:{ initialBalance, currency } }:any){
+        const id = profileId ?? user?.profileId;
 
         try {
             const newWallet: Wallet|null = await this.walletService.create(id, {initialBalance, currency: currency ?? Currency.ZMW});
 
             if(!newWallet){
-                throw 'Unable to create new wallet'
+                throw new InternalServerError('Unable to create new wallet');
             }
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
@@ -174,8 +181,7 @@ export class WalletController {
                 return 'Unable to create new wallet. User already has a wallet.';
             }
             
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: 'Unable to create new wallet' }
+            throw error;
         }
     }
 

@@ -3,6 +3,7 @@ import { db } from "~config/prisma";
 import constants from "~config/consts";
 import { Coupon, Currency, DiscountType, Prisma, TransactionStatus, Wallet, WalletTransaction } from "@prisma/client";
 import { NotFoundError, ValidationError } from "elysia";
+import { WalletWithOptionalChildren } from "./wallet.model";
 
 export class WalletService {
     // private static wallet: IWallet|null = null;
@@ -34,7 +35,7 @@ export class WalletService {
     }
 
     // Create a new wallet
-    async create(profileId: string, opts?:{initialBalance:number, currency: Currency}): Promise<Wallet|null> {
+    async create(userProfileId: string, query?:{initialBalance:number, currency: Currency}): Promise<Wallet|null> {
         try {
             // await db.profile.update({
             //     where: { id: profileId },
@@ -48,9 +49,9 @@ export class WalletService {
             //         }
             //     }
             // })
-            const exists = await db.wallet.findFirst({
+            const exists: Partial<Wallet>|null = await db.wallet.findFirst({
                 where: {
-                    userProfileId: profileId
+                    userProfileId: userProfileId
                 },
                 select: { id: true }
             });
@@ -59,11 +60,11 @@ export class WalletService {
                 throw new NotFoundError('You already have a Wallet')
             }
 
-            const wallet = await db.wallet.create({
+            const wallet: Wallet|null = await db.wallet.create({
                 data: {
-                    userProfileId: profileId,
-                    currency: opts?.currency ?? Currency.ZMW,
-                    balance: opts?.initialBalance ?? 0.00
+                    userProfileId: userProfileId,
+                    currency: query?.currency ?? Currency.ZMW,
+                    balance: query?.initialBalance ?? 0.00
                 },
                 include: { transactions:false, userProfile:false },
             });
@@ -77,15 +78,15 @@ export class WalletService {
 
 
     // Retrieve a Wallet by ID
-    async getWalletByID(userProfileId: string, transactions?: boolean, userProfile?: boolean) {
+    async getWalletByID(userProfileId: string, query?:{ transactions?: boolean, profile?: boolean }) {
         
-        return await db.wallet.findUnique({
+        return db.wallet.findUnique({
             where: {
                 userProfileId: userProfileId
             },
             include: {
-                transactions: transactions ?? false,
-                userProfile: userProfile ?? false,
+                transactions: query?.transactions ?? false,
+                userProfile: query?.profile ?? false,
             }
         });
     }

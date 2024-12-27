@@ -94,14 +94,14 @@ export const checkIsStaff = async ({ user, error }:any) => {
 export const checkForProfile =  async ({ user, session, error }: any) => {
   const { isActive, profileId, profileIsActive } = user ?? {};
 
-  console.log(user);
+  // console.log(user);
   // console.log(session);
-  
-  
-  // if (!user || !isActive) {
-  //   set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-  //   return { message: 'Active User Account & Profile required', note: 'User Account is deactivated' };
-  // }
+
+  if (!user || !isActive) {
+    // set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+    // return { message: 'Active User Account & Profile required', note: 'User Account is deactivated' };
+    return error(403, 'Active User Account & Profile required');
+  }
 
   if(!profileId){
     const reason = !profileId
