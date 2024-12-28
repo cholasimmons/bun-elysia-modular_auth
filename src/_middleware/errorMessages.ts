@@ -14,12 +14,13 @@ import { CustomError } from "src/_modules/root/app.models";
   
   function handleInternalServerError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { message: error.message ?? 'Internal Server Error ⚠️', code: set.status, error: error.name };
+    return { message: error.message ?? 'Internal Server Error ⚠️', code: error.status ?? set.status, error: error.cause ?? error.name };
   }
-    
   function handleError(error: CustomError, set: any) {
+    console.error(error);
+    
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: error.status ?? set.status, message: 'Internal Server Error ⚠️', error: error.cause ?? error.message  };
+    return { message: 'Internal Server Error ⚠️', code: error.status ?? set.status, error: error.cause ?? error.name };
   }
   
   function handleValidation(error: CustomError, set: any) {
@@ -79,7 +80,13 @@ import { CustomError } from "src/_modules/root/app.models";
   }
   function handleRequestError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status , message: 'Database known request error' };
+    return { code: error.status ?? set.status, message: 'Database known request error', error: error.cause };
+  }
+
+  function handleConflictError(error:CustomError, set: any) {
+    const { status, message, name, cause} = error;
+    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: status ?? set.status, message: message ?? 'A conflict was detected', note: cause ?? name };
   }
 
   function handleAuthorizationError(error: CustomError, set: any){
@@ -121,12 +128,16 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseError(error, set);
       case 'InternalServerError':
         return handleInternalServerError(error, set);
+      case 'Error':
+        return handleError(error, set);
       case 'VALIDATION':
         return handleValidation(error, set);
       case 'NotFoundError':
         return handleNotFoundError(error, set);
-      // case 'Error':
-      //   return handleError(error, set);
+      case 'ConflictError':
+        return handleConflictError(error, set);
+      case 'S3Error':
+        return { message: error.message };
     }
 
     switch (code) {
@@ -144,6 +155,12 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleValidation(error, set);
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
+      case 'NoSuchBucket':
+        return { message: "Unable to store S3 buffer 😒" }
+      case 'NOT_FOUND':
+        console.log("an error ", code);
+        
+        // return handleNotFoundError(error, set);
       default:
         return { code: set.status, message: 'An unhandled error occurred', note: error.message };
     }

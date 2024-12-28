@@ -165,3 +165,21 @@ export type ProfileWithSafeUser = Prisma.ProfileGetPayload<{
 export type ProfileWithSafeUserModel = Profile & {
     user?: Partial<User>|null
 };
+
+export type SafeUser = Prisma.UserGetPayload<{
+    select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        username: true,
+        roles: true,
+        email: true,
+        phone: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+        profileId: true,
+        isActive: true,
+        isComment: true
+    }
+}>;

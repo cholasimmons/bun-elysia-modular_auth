@@ -31,6 +31,7 @@
       "~modules/*":["src/_modules/*"],
       "~utils/*":["src/_utils/*"],
       "~middleware/*":["src/_middleware/*"],
+      "~exceptions/*":["src/_exceptions/*"],
       "~html/*":["public/*"]
     },
     /* Specify a set of entries that re-map imports to additional lookup locations. */

@@ -10,13 +10,21 @@ export class WalletController {
     private walletService: WalletService;
 
     constructor(){
-        this.walletService = new WalletService();
+        this.walletService = WalletService.getInstance();
     }
 
-    async getAll({ set, user, query: { transactions, userProfile } }: any):Promise<{data:Wallet[], message:string}|{message:string}>{
+    async getAll({ set, user, query }: any):Promise<{data:Wallet[], message:string}|{message:string}>{
+        const { transactions, userProfile } = query;
+        const { page, limit, sortBy, sortOrder, searchField, search } = query;
+        const searchOptions = {
+            page, limit,
+            sortBy: { field: sortBy ?? 'createdAt', order: sortOrder },
+            search: { field: searchField ?? 'balance', value: search},
+            include: { transactions, userProfile }
+        }
 
         try {
-            const wallets: Wallet[] = await db.wallet.findMany({
+            const wallets: Wallet[]|null = await db.wallet.findMany({
                 // where: { 
                 //     userProfileId: user.userId,
                 // },
@@ -39,9 +47,12 @@ export class WalletController {
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: wallets, message: 'Successfully loaded wallets' };
         } catch (error) {
-            console.error(error);
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: 'Something went wrong fetching the wallets' };
+            // console.error(error);
+
+            throw error;
+            
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+            // return { message: 'Something went wrong fetching the wallets' };
         } 
 
         // const profile = await usersService.getProfileById(userSession.user.userId);
@@ -189,7 +200,7 @@ export class WalletController {
         console.debug(payment);
         
         try {
-            const transaction = await this.walletService.makePayment( user.profileId, amount, discountCode, profileId, reference, longitude, latitude)
+            const transaction = await this.walletService.makePayment( user.profileId, amount, discountCode, profileId, reference, latitude, longitude)
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return { data: transaction, message: `Payment of ${transaction.currency}${transaction.amount} successful`};

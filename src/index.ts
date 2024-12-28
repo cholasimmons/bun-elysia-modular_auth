@@ -27,9 +27,10 @@ import { registerControllers } from "./server";
 import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
 import { FilesController } from "~modules/files";
-import { AuthService } from "./_modules";
+import { AuthService, MessageService } from "./_modules";
 import { DatabaseError } from "./_exceptions/custom_errors";
 import { redisMessagingService } from "~config/redis";
+import { Message } from "@prisma/client";
 
 
 try {
@@ -37,6 +38,7 @@ try {
 
   const authService = AuthService.getInstance();
   const files = new FilesController();
+  const messageService = MessageService.getInstance();
 
   if (import.meta.main) {
     const PORT = Bun.env.PORT || 3000;
@@ -65,26 +67,29 @@ try {
 
 
     // Swagger
-    .use(swagger({ autoDarkMode: true, documentation: {
-      info: {
-          title: `${consts.server.name}`,
-          version: `${consts.server.version}`,
-          description: `Server API for ${consts.server.name}`,
-          contact: {
-            name: "Frank Simmons",
-            email: "frank@simmons.studio"
-          }
+    .use(swagger({ autoDarkMode: true,
+      documentation: {
+        info: {
+            title: `${consts.server.name}`,
+            version: `${consts.server.version}`,
+            description: `Server API for ${consts.server.name}`,
+            contact: {
+              name: consts.server.author,
+              email: consts.server.email
+            }
+        }
       },
-      
-    },
+      swaggerOptions: {
+        syntaxHighlight: { theme: "monokai" }
+      }
     }))
 
     // CORS security
     .use(cors({
-      // origin: ['http://localhost', 'http://localhost:5173'],
-      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH'],
+      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH', 'DELETE'],
       credentials: true,
-      origin: /localhost.*/,
+      // origin: /localhost.*/,
+      origin: ['http://localhost/*', 'http://localhost:3000/*', 'http://localhost:3000/v1/swagger'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'X-Client-Type' ]
     }))
 
@@ -138,6 +143,14 @@ try {
           console.log('All expired sessions successfully deleted');
         }).catch(e => {
           console.error("Couldn't delete sessions. ",e);
+        });
+
+
+        // TODO: Delete all inactive messages older than 30 days
+        messageService.clearDeletedMessages().then((messages: any) => {
+          console.log(messages);
+          console.log(`Deleted ${messages.length} inactive messages`);
+          
         });
       }
     }))

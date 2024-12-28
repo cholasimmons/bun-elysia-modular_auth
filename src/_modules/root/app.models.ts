@@ -1,5 +1,5 @@
 export interface CustomError extends Error {
-  status: number;
+  status?: number;
     validator?: {
       schema?: {
         properties?: any;

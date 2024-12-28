@@ -77,14 +77,14 @@ const initializeCouponEventListeners = () => {
 
 // Messaging module events
 const initializeMessagingEventListeners = () => {
-  redisMessagingService.subscribe("messages-events", (message) => {
+  redisMessagingService.subscribe("message-events", (message) => {
     const event = JSON.parse(message);
     const msg = event.message as Partial<Message>;
 
     switch (event.action) {
       case "sent":
         // Notify recipient
-        console.log(`New message from ${msg.senderId}: ${msg.title}`);
+        console.debug(`[Event] New [${msg.deliveryMethods}] message from ${msg.senderId}: ${msg.title}`);
         break;
     
       default:

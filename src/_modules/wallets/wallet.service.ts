@@ -6,10 +6,18 @@ import { NotFoundError, ValidationError } from "elysia";
 import { WalletWithOptionalChildren } from "./wallet.model";
 
 export class WalletService {
-    // private static wallet: IWallet|null = null;
+    private static instance: WalletService;
 
     default(){
         return 'Wallet Service';
+    }
+
+    public static getInstance(): WalletService {
+        if (!WalletService.instance) {
+            WalletService.instance = new WalletService();
+        }
+        
+        return WalletService.instance;
     }
 
     // Check balance of wallet by User Profile ID
@@ -92,7 +100,7 @@ export class WalletService {
     }
 
 
-    async makePayment(userProfId: string, amountToPay: number, discountCode: string, payeeProfileId: string, reference?: string, longitude?:number, latitude?: number) {
+    async makePayment(userProfId: string, amountToPay: number, discountCode: string, payeeProfileId: string, reference?: string, latitude?: number, longitude?:number) {
 
         const transactionFee = constants.transactions.fee;
 
@@ -102,7 +110,7 @@ export class WalletService {
                     where: {
                         userProfileId: userProfId
                     },
-                    include: { transactions: true }
+                    // include: { transactions: true }
                 });
                 
                 // Make call to external platform if payment is off premise
@@ -129,7 +137,7 @@ export class WalletService {
                 let nowNumber = Date.now();
                 const now = new Date(nowNumber);
                 if(discountObj.usedBy.length >= discountObj.maxUses || now >= (discountObj.expiresAt ?? now)){
-                    throw `Discount Code no longer valid`;
+                    throw new NotFoundError(`Discount Code no longer valid`);
                 }
 
                 // Calculate discount from discountCode (coupon)

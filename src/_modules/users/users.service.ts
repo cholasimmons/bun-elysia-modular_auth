@@ -3,7 +3,7 @@ import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
 import { redisGet, redisSet } from "~config/redis";
-import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUser, ProfileWithSafeUserModel } from "./users.model";
+import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
 import { InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
 
 
@@ -92,7 +92,8 @@ export class UsersService {
                     email, phone,
                     supportLevel,
                     photo,
-                    subscriptionType: SubscriptionType.FREE
+                    subscriptionType: SubscriptionType.FREE,
+                    userId: userId
                 },
             });
 
@@ -182,53 +183,60 @@ export class UsersService {
     // }
 
     modifyRoles = {
-         add(roles:Role[], newRole: Role, replaceRole: Role): Role[] {
-
-            const replaceIndex = roles.indexOf(replaceRole);
-
-            if (replaceIndex !== -1) {
-                // If the new role already exists, replace it
-                roles[replaceIndex] = newRole;
-            } else {
-                // If the new role doesn't exist, append it
-                roles.push(newRole);
-            }
-        
+        add(roles: Role[], newRoles: Role | Role[], replaceRoles?: Role | Role[]): Role[] {
+            // Normalize to array
+            const newRolesArray = Array.isArray(newRoles) ? newRoles : [newRoles];
+            const replaceRolesArray = replaceRoles ? (Array.isArray(replaceRoles) ? replaceRoles : [replaceRoles]) : [];
+    
+            replaceRolesArray.forEach(replaceRole => {
+                const replaceIndex = roles.indexOf(replaceRole);
+                if (replaceIndex !== -1) {
+                    // Replace the role if it exists
+                    roles[replaceIndex] = newRolesArray.shift()!;
+                }
+            });
+    
+            // Add remaining new roles if they were not used in replacement
+            roles.push(...newRolesArray.filter(newRole => !roles.includes(newRole)));
+    
             return roles;
         },
         
-        remove(roles:Role[], removeRole: Role): Role[] {
-
-            const removeIndex = roles.indexOf(removeRole);
-
-            if (removeIndex !== -1) {
-                // If the role already exists, remove it
-                roles.splice(removeIndex, 1);
-            }
-        
+        remove(roles: Role[], removeRoles: Role | Role[]): Role[] {
+            // Normalize to array
+            const removeRolesArray = Array.isArray(removeRoles) ? removeRoles : [removeRoles];
+    
+            // Remove all specified roles
+            removeRolesArray.forEach(removeRole => {
+                const removeIndex = roles.indexOf(removeRole);
+                if (removeIndex !== -1) {
+                    roles.splice(removeIndex, 1);
+                }
+            });
+    
             return roles;
-        }
+        },
     }
 
 
     // Clean full User object, removing sessions, password, OAuth IDs and profile
-    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
-        let tempUser:any = user;
+    sanitizeUserObject(user: User):SafeUser{
+        let tempUser:User = user;
 
-        delete tempUser.hashedPassword;
+        // delete tempUser.hashedPassword;
 
-        const cleanUser: Partial<User> = {
-            id: opts?.id ? tempUser.id : undefined,
+        const cleanUser: SafeUser = {
+            id: tempUser.id,
             firstname: tempUser.firstname,
             lastname: tempUser.lastname,
             username: tempUser.username,
             roles: tempUser.roles,
             email: tempUser.email,
-            emailVerified: opts?.verified ? tempUser.emailVerified : undefined,
+            emailVerified: tempUser.emailVerified,
             phone: tempUser.phone,
             profileId: tempUser.profileId,
-            isActive: opts?.active ? tempUser.isActive : undefined,
-            isComment: opts?.comment ? tempUser.isComment : undefined,
+            isActive: tempUser.isActive,
+            isComment: tempUser.isComment,
             createdAt: tempUser.createdAt,
             updatedAt: tempUser.updatedAt,
         };
@@ -301,17 +309,22 @@ export class UsersService {
         console.log(`Sending message to ${userProfile.firstname}`);
         // TODO: Implement timeout to limit the resends
 
-        try {
-            await this.resend.emails.send({
+        return await this.resend.emails.send({
                 from: consts.server.email, // 'onboarding@resend.dev',
                 to: userProfile?.email!,
                 subject: subject ?? `System message | ${consts.server.name}`,
                 html: message,
             });
-        } catch (error) {
-            console.error(error);
-            
-            throw 'Could not send email.'
-        }
+    }
+
+    async modifySubscription(userId:string, subscription:SubscriptionType ): Promise<Profile> {
+        return await db.profile.update({
+            where: {
+                userId: userId
+            },
+            data: {
+                subscriptionType: subscription
+            }
+        });
     }
 }

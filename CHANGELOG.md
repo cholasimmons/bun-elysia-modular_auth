@@ -1,6 +1,29 @@
 # Changelog
 
 
+## [0.4.3] - 31-12-2024
+
+### Added
+
+- Rate limiter and message duplicate check to message sending service
+- Subscription changing service function
+
+### Fixed
+
+- 
+
+### Changed
+
+- MessageService is now a singleton service, so is Wallets and Coupons services
+- 
+
+### Updated
+
+- Elysia, 1.2.8 (big deal "minor update", reduces system memory usage by over half)
+- Swagger, 1.2.0 Still seems to have a bug preventing the UI from loading (1.0.5 remains the goto version)
+
+
+
 ## [0.4.2] - 25-12-2024
 
 ### Added

@@ -1,28 +1,36 @@
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { CouponService, ICreateCoupon } from ".";
-import { db } from "~config/prisma";
+import { db, prismaSearch } from "~config/prisma";
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError, PrismaClientValidationError } from "@prisma/client/runtime/library";
-import { CasesService } from "~modules/cases";
 import { Coupon } from "@prisma/client";
 
 export class CouponController {
-    private coupon: CouponService;
+    private couponService: CouponService;
 
     constructor(){
-        this.coupon = new CouponService();
+        this.couponService = CouponService.getInstance();
     }
+    
 
-    async getMyCoupons({ set, user: { profileId } }: any){
+    getMyCoupons = async({ set, user: { profileId }, query }: any) => {
+        const { usedBy } = query;
+        const { page, limit, sortBy, sortOrder, searchField, search } = query;
+        const searchOptions = {
+            page, limit,
+            sortBy: { field: sortBy ?? 'createdAt', order: sortOrder },
+            search: { field: searchField ?? 'code', value: search},
+            include: { usedBy }
+        }
 
         try {
+            const coupons = await prismaSearch('coupon', searchOptions);
+            // const coupons = await db.coupon.findMany({
+            //     where: { 
+            //         ownerProfileId: profileId
+            //     }
+            // })
 
-            const coupons = await db.coupon.findMany({
-                where: { 
-                    ownerProfileId: profileId,
-                }
-            })
-
-            if(!coupons || coupons.length < 1) {
+            if(!coupons.data || coupons.total < 1) {
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
                 return { message: 'You do not own any coupons' };
             }
@@ -36,7 +44,7 @@ export class CouponController {
             // )
             
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: coupons, message: `Successfully retrieved ${coupons.length} of your Coupons` };
+            return { data: coupons, message: `Successfully retrieved ${coupons.total} of your Coupons` };
         } catch (error) {
             console.error(error);
 
@@ -45,10 +53,10 @@ export class CouponController {
         }
     }
 
-    async getAllCoupons({ set, params:{ isActive } }: any){
+    getAllCoupons = async({ set, params:{ isActive } }: any) => {
 
         try {
-            const coupons: Coupon[]|null = await this.coupon.getAllCouponsAsAdmin({ isActive })
+            const coupons: Coupon[]|null = await this.couponService.getAllCouponsAsAdmin({ isActive })
 
             if(!coupons || coupons.length < 1) {
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -65,11 +73,11 @@ export class CouponController {
         }
     }
 
-    async getCouponByCode({ set, user, params: {code} }: any){
+    getCouponByCode = async({ set, user, params: {code} }: any) => {
         const { profileId } = user;
 
         try {
-            const coupon = await this.coupon.getCouponByCode(code, profileId)
+            const coupon = await this.couponService.getCouponByCode(code, profileId)
 
             if(!coupon) {
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -86,9 +94,9 @@ export class CouponController {
         }
     }
 
-    async getCouponByCodeAsAdmin({ set, params: {code} }: any){
+    getCouponByCodeAsAdmin = async({ set, params: {code} }: any) => {
         try {
-            const coupon = await this.coupon.getCouponByCode(code)
+            const coupon = await this.couponService.getCouponByCode(code)
 
             if(!coupon) {
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -105,9 +113,9 @@ export class CouponController {
         }
     }
 
-    async getUsersCoupons({ set, params: {profileId} }: any){
+    getUsersCoupons = async({ set, params: {profileId} }: any) => {
         try {
-            const coupons: Coupon[]|null = await this.coupon.getCouponsByUserProfileId(profileId)
+            const coupons: Coupon[]|null = await this.couponService.getCouponsByUserProfileId(profileId)
 
             if(!coupons) {
                 set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
@@ -124,7 +132,7 @@ export class CouponController {
         }
     }
 
-    async createCoupon({ set, user: { profileId }, query, body:{ code, name, discount, discountType, expiresAt, maxUses } }:any){
+    createCoupon = async({ set, user: { profileId }, query, body:{ code, name, discount, discountType, expiresAt, maxUses } }:any) => {
 
         console.log("Creating coupon...");
         console.log(new Date());
@@ -138,7 +146,7 @@ export class CouponController {
                 expiresAt: expiresAt ?? null,
                 maxUses: maxUses
             }
-            const newCoupon: Coupon|null = await this.coupon.createCoupon(profileId!, payload, { usedBy: query?.usedBy })
+            const newCoupon: Coupon|null = await this.couponService.createCoupon(profileId!, payload, { usedBy: query?.usedBy })
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return { data: newCoupon, message: 'Successfully created Coupon' };
@@ -165,11 +173,11 @@ export class CouponController {
         }
     }
 
-    async useCoupon({ set, user, body }:any){
+    useCoupon = async({ set, user, body }:any) => {
         const { profileId } = user;
 
         try {
-            const coupon = await this.coupon.useCoupon(profileId, body.code);
+            const coupon = await this.couponService.useCoupon(profileId, body.code);
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: coupon, message: '...' };

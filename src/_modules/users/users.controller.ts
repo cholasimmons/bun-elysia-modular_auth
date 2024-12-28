@@ -1,15 +1,15 @@
 import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db, prismaSearch } from "~config/prisma";
-import { AutoEnrol, FileStatus, Profile, User } from "@prisma/client";
+import { AutoEnrol, FileStatus, Profile, Role, SubscriptionType, User } from "@prisma/client";
 import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
-import { paginationOptions } from "~modules/root/root.models";
-import { AuthorizationError, ConflictError, InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
-import { redisMessagingService, redisSet } from "~config/redis";
-import { ProfileWithPartialUser, ProfileWithSafeUserModel } from "./users.model";
+import { redisGet, redisMessagingService, redisSet } from "~config/redis";
+import { ProfileWithPartialUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
+import { S3Error } from "minio";
+import { AuthorizationError, ConflictError, InternalServerError, NotFoundError } from "~exceptions/custom_errors";
 
 
 export class UsersController {
@@ -48,8 +48,9 @@ export class UsersController {
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { total: users.total, count: users.count, page: users.page, data: users.data, message: `Found ${users.data.length > 1 ? users.data.length : '0'} Users` }
         } catch (err:any) {
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Could not fetch Users' }
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: 'Could not fetch Users' }
+            throw err;
         }
         
     }
@@ -331,6 +332,7 @@ export class UsersController {
             //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             // }
 
+            // Create a new User Profile
             const newProfile: ProfileWithSafeUserModel = await this.userSvc.createUserProfile(ammendedProfile)
 
 
@@ -339,6 +341,9 @@ export class UsersController {
                 // return { message: 'Problem processing profile submission.' }
                 throw new InternalServerError("Error processing profile submission.");
             }
+
+            // TODO: Ideally have the profile created as inactive, until approven by a case officer
+            // Payment could be an option or simply a document verification
 
             redisMessagingService.publish('user-events', {
                 action: "user_profile-created",
@@ -365,6 +370,11 @@ export class UsersController {
             //     set.status = err.errorCode;
             //     return { message: err.message }
             // }
+
+            if(err instanceof S3Error){                
+                set.status = HttpStatusEnum.HTTP_503_SERVICE_UNAVAILABLE;
+                return { message: err.message, note: err.code ?? err.name }
+            }
 
             throw err;
 
@@ -406,6 +416,10 @@ export class UsersController {
     /* PUT */
 
     /* PATCH */
+
+    updateSubscription = async({ set, user }:any) => {
+        // userId:string, subscription:SubscriptionType
+    }
 
     // Updates a User profile
     updateUserProfile = async({ set, params, user, body }:any) => {
@@ -477,6 +491,49 @@ export class UsersController {
 
             set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
             return { message: 'Could not modify User Profile', note: error }
+        }
+    }
+
+    // Updates a User's roles [STAFF]
+    addUserRoles = async({ set, params, body }:any) => {
+        const user_id = params.userId;
+        const newRoles: Role[] = body.newRoles;
+        const oldRoles: Role[] = body.oldRoles;
+
+        try {
+            let user: User|null = await redisGet(`user:${user_id}`);
+
+            if(!user){
+                user = await db.user.findUnique({
+                    where: { id: user_id}
+                });
+
+                if(!user){
+                    throw new NotFoundError("No User with that ID");
+                }
+
+                await redisSet(`user:${user_id}`, user, 5)
+            }
+
+            const roles = this.userSvc.modifyRoles.add(user.roles, newRoles, oldRoles)
+
+            const dbUser: User|null = await db.user.update({
+                where: { id: user_id },
+                data: { roles: roles }
+            });
+
+            const cleanUser: SafeUser = this.userSvc.sanitizeUserObject(dbUser);
+
+
+            set.status = HttpStatusEnum.HTTP_200_OK;
+            return { data: cleanUser, message: `Updated User Roles ${cleanUser.roles}` };
+        } catch (error) {
+            // console.error(error);
+
+            throw error;
+
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: 'Could not modify User Profile', note: error }
         }
     }
 

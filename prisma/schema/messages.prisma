@@ -8,11 +8,12 @@ model Message {
     title         String                                 // Title of the message
     message       String                                 // Content of the message
     priority      MessagePriority @default(LOW)          // Priority level
-    deliveryMethods MessageDelivery[]                    // ['internal', 'notification', 'email', 'sms']
+    deliveryMethods MessageDelivery[] @default([INTERNAL])                   // ['internal', 'notification', 'email', 'sms']
     isRead        Boolean @default(false)                // Whether the message has been read
     createdAt     DateTime @default(now()) @map("created_at") // Timestamp of creation
     updatedAt     DateTime @updatedAt @map("updated_at") // Timestamp of the last update
     isArchived    Boolean @default(false)                // To archive old messages
+    isActive      Boolean @default(true)                 // to hold on to deleted messages for a while
 
     @@index([id, senderId, createdAt(sort: Desc)])
     @@map("messages")
