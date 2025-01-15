@@ -8,7 +8,7 @@ import { FilesHandler } from "~modules/files";
 import { WalletsRouter } from "~modules/wallets";
 import { MessageRouter } from "~modules/messages";
 import { CouponsRouter } from "~modules/coupons";
-import { initializeEventListeners } from "./_events";
+import { initializeEventListeners } from "./_subscriptions/events";
 
 
 // ROUTES

@@ -15,7 +15,8 @@ import { splitWords, usernameFromEmail } from "~utils/utilities";
 import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
 import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
-import { PrismaUserWithProfile } from "~modules/users/users.model";
+import { PrismaUserWithProfile, SafeUser } from "~modules/users/users.model";
+import { emailQueue } from "src/_subscriptions/queues";
 
 export class AuthController {
     // private authService: AuthService;
@@ -85,6 +86,7 @@ export class AuthController {
                 await lucia.invalidateSession(tempSessId);
             }
 
+            const safeUser: SafeUser = this.userService.sanitizeUserObject(userExists);
             const sanitizedUser = {
                 firstname: userExists.firstname,
                 lastname: userExists.lastname,
@@ -101,13 +103,13 @@ export class AuthController {
             }
 
             // Publish that a User successfully logged in
-            redisMessagingService.publish('user-events', {
-                action: "user_logged-in",
-                user: sanitizedUser
+            redisMessagingService.publish('user', {
+                action: "user:login",
+                user: safeUser
             });
 
             // RAW redis function
-            await redisSet(`user:${userExists.id}`, sanitizedUser, 5);
+            await redisSet(`user:${userExists.id}`, safeUser, 5);
 
             const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, userExists, headers, rememberme);
             if(authMethod === 'JWT'){
@@ -205,17 +207,17 @@ export class AuthController {
             const session = await this.authService.createLuciaSession(newUser.id, headers);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
-            const sanitizedUser: Partial<User> = await this.authService.sanitizeUserObject(newUser);
+            const safeUser: SafeUser = this.userService.sanitizeUserObject(newUser);
 
-            redisMessagingService.publish('user-events', {
-                action: "user-registered",
-                user: sanitizedUser
+            redisMessagingService.publish('user', {
+                action: "user:register",
+                user: safeUser
             });
 
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return {
-                data: sanitizedUser,
+                data: safeUser,
                 message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})`,
                 note: 'User account created' + autoUser ? ' via Auto-enrol' : '. No Auto-enrol'
             };

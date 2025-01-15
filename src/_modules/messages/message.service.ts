@@ -92,7 +92,7 @@ export class MessageService {
     };
 
 
-    // Retrieve Messages by User's Profile ID
+    // Retrieve Messages by User's  ID
     async getMessagesByUserId(userId:string, query?:{ isRead?: boolean, isArchive?:boolean}) {
         return db.message.findMany({
             where: {

@@ -1,6 +1,33 @@
 # Changelog
 
 
+## [0.4.4] - 18-01-2025
+
+### Added
+
+- BullMQ fast and robust queue system
+
+### Fixed
+
+- 
+
+### Changed
+
+- `_events` folder is now `_subscriptions`, and houses the BullMQ Queue system and Redis Event system
+- Event system (Redis Pub/Sub) now triggers BullMQ job queues
+
+### Removed
+
+- `sanitizeUserObject()` from AuthService replaced by function of same name in UsersService, that returns a User object WITHOUT password
+
+### Updated
+
+- Bun 1.1.43
+- Elysia, 1.2.10
+- Prisma 6.2.1
+
+
+
 ## [0.4.3] - 31-12-2024
 
 ### Added

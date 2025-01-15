@@ -1,4 +1,5 @@
 import { Coupon, Message, Profile, User, WalletTransaction } from "@prisma/client";
+import { emailQueue } from "src/_subscriptions/queues";
 import { redisMessagingService } from "~config/redis";
 
 // System events for testing
@@ -15,25 +16,35 @@ const initializeTestEventListeners = () => {
 
 // User module events
 const initializeUserEventListeners = () => {
-  redisMessagingService.subscribe("user-events", (message) => {
+  redisMessagingService.subscribe("user", (message) => {
     const event = JSON.parse(message);
     const user = event.user as Partial<User | Profile>;
 
-    if (event.action === "user_registered") {
+    if (event.action === "user:register") {
         console.debug(`[EVENT] New user registered: ${user.firstname} ${user.lastname}`);
         // Run user registration logic
+
+        emailQueue.add('user:register', user, {
+          attempts: 5, // Retry
+          backoff: { type: "exponential", delay: 1000 } // Exponential backoff
+      });
     }
   
-    if (event.action === "user_logged-in") {
+    if (event.action === "user:login") {
         console.debug(`[EVENT] User logged in: ${user.email}`);
+
+        emailQueue.add('user:login', user, {
+            attempts: 5, // Retry
+            backoff: { type: "exponential", delay: 1000 } // Exponential backoff
+        });
     }
 
-    if (event.action === "user_deleted") {
+    if (event.action === "user:delete") {
       console.log(`User deleted: ${user.id}`);
       // Run user deletion logic
     }
 
-    if (event.action === "user_create-profile") {
+    if (event.action === "user:new-profile") {
       console.log(`User ${user.firstname} created a profile`);
   }
   });

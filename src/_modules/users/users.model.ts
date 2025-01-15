@@ -163,7 +163,7 @@ export type ProfileWithSafeUser = Prisma.ProfileGetPayload<{
     }
 }>
 export type ProfileWithSafeUserModel = Profile & {
-    user?: Partial<User>|null
+    user?: SafeUser
 };
 
 export type SafeUser = Prisma.UserGetPayload<{

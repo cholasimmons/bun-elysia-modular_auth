@@ -36,10 +36,11 @@
     "@elysiajs/static": "^1.2.0",
     "@elysiajs/swagger": "1.0.5",
     "@lucia-auth/adapter-prisma": "^4.0.1",
-    "@prisma/client": "5.15.1",
+    "@prisma/client": "^6.2.1",
     "arctic": "^1.9.2",
+    "bullmq": "^5.34.10",
     "chalk": "^5.4.1",
-    "elysia": "^1.2.8",
+    "elysia": "^1.2.10",
     "elysia-helmet": "^2.0.0",
     "elysia-htmx": "^1.0.9",
     "elysia-http-status-code": "^1.0.9",
@@ -56,8 +57,8 @@
     "sharp": "^0.33.5"
   },
   "devDependencies": {
-    "bun-types": "^1.1.42",
-    "prisma": "5.15.1",
+    "bun-types": "^1.1.43",
+    "prisma": "^6.2.1",
     "tsx": "^4.19.2"
   },
   "module": "index.js"
