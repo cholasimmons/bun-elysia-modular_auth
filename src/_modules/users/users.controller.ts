@@ -1,13 +1,15 @@
 import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db, prismaSearch } from "~config/prisma";
-import { AutoEnrol, FileStatus, Profile, User } from "@prisma/client";
+import { AutoEnrol, FileStatus, Profile, Role, SubscriptionType, User } from "@prisma/client";
 import { AuthService, FilesService } from "..";
 import { lucia } from "~config/lucia";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
-import { cache, redisGet } from "~config/redis";
-import { paginationOptions } from "~modules/root/root.models";
+import { redisGet, redisMessagingService, redisSet } from "~config/redis";
+import { ProfileWithPartialUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
+import { S3Error } from "minio";
+import { AuthorizationError, ConflictError, InternalServerError, NotFoundError } from "~exceptions/custom_errors";
 
 
 export class UsersController {
@@ -46,8 +48,9 @@ export class UsersController {
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { total: users.total, count: users.count, page: users.page, data: users.data, message: `Found ${users.data.length > 1 ? users.data.length : '0'} Users` }
         } catch (err:any) {
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Could not fetch Users' }
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: 'Could not fetch Users' }
+            throw err;
         }
         
     }
@@ -77,12 +80,13 @@ export class UsersController {
 
     // Retrieve User's Account status [SELF | STAFF]
     getAccountStatus = async({ set, user, params }:any) => {        
-        const user_id = params?.userId ?? user.id;        
+        const user_id = params?.userId ?? user?.id;        
 
         try {
             if(!user_id){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'No User ID found' };
+                throw new NotFoundError("No User ID found", 404, "No User ID was provided");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'No User ID found' };
             }
 
             const u: Partial<User> = await this.userSvc.getUser(user_id);
@@ -104,21 +108,55 @@ export class UsersController {
         }
     }
 
-    // Retrieve single User Profile [ STAFF | ADMIN | SELF]
-    getProfileByUserId = async ({ set, user, params, query }: any) => {
-        const user_id = params?.userId ?? user.id;
-        const { account } = query;
+    // Retrieve User's Profile status [SELF | STAFF]
+    getProfileStatus = async({ set, user, params }:any) => {        
+        const user_id = params?.userId ?? user?.id;
 
         try {
-            const profile = await this.userSvc.getProfileByUserId(user_id, { account })
+            if(!user_id){
+                throw new NotFoundError("No User ID provided");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'No User ID found' };
+            }
 
-            if(!profile){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Could not fetch Profile' };
+            const partialProfile: Partial<Profile> = await this.userSvc.getProfileByUserId(user_id);
+
+            const isActive = partialProfile.isActive;
+
+            if(isActive == null || isActive == undefined){
+                throw new InternalServerError("Active status unknown");
+                // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+                // return { message: 'Active status unknown' }
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: profile, message: 'Successfully retrieved User Profile' };
+            return { data: isActive.toString(), message: 'Retrieved User Profile status' };
+        } catch (err) {
+            console.error(err);
+
+            throw err;
+
+            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            return { message: 'Could not fetch User\'s Active status' }
+        }
+    }
+
+    // Retrieve single User Profile [ STAFF | ADMIN | SELF]
+    getProfileByUserId = async ({ set, user, params, query }: any) => {
+        const user_id = params?.userId;
+        const { account, subscription, usedCoupons } = query;
+
+        try {
+            const profile = await this.userSvc.getProfileByUserId(user_id, { account, subscription, usedCoupons })
+
+            // if(!profile){
+            //     throw new NotFoundError("Error fetching Profile");
+            //     // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+            //     // return { message: '' };
+            // }
+
+            set.status = HttpStatusEnum.HTTP_200_OK;
+            return { data: profile, message: `Successfully retrieved User Profile${account ? ' and Account' : '.'}` };
         } catch(e:any) {
             console.warn(e);
 
@@ -128,51 +166,31 @@ export class UsersController {
     }
 
     // Retrieve currently logged in User's Profile [SELF]
-    async getMyProfile({ set, user, params, query:{ account } }: any){
-        const user_id = params?.userId ?? user.id ?? null;
+    getMyProfile = async({ set, user, params, query }: any) => {
+        const user_id = user?.id;
+        const { account, subscription, usedCoupons } = query;
 
         try {
-            // await redisGet<Profile>(`profile:user:${user_id}`);
+            const profile: ProfileWithPartialUser = await this.userSvc.getProfileByUserId(user_id, { account, subscription, usedCoupons })
 
-            const profile = await db.profile.findUnique({
-                where: { userId: user_id },
-                include: {
-                    user: account ? {
-                        select: {
-                            id: true,
-                            firstname: true,
-                            lastname: true,
-                            username: true,
-                            roles: true,
-                            email: true,
-                            emailVerified: true,
-                            phone: true,
-                            isActive: true,
-                            isComment: true,
-                            createdAt: true,
-                            updatedAt: true
-                        }
-                    } : false
-                }
-            });
-
-            if(!profile){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Profile does not exist'};
-            }
+            // if(!profile){
+            //     throw new NotFoundError("Profile does not exist");
+            //     // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+            //     // return { message: 'Profile does not exist'};
+            // }
 
             if(!profile.isActive){
-                set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
-                return { data: profile.isComment, message: 'Profile is deactivated' };
+                throw new AuthorizationError(`Your profile is deactivated. ${profile.isComment ?? ''}`);
+                // set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
+                // return { data: profile.isComment, message: 'Profile is deactivated' };
             }
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: profile, message: 'Successfully retrieved your User Profile' };
         } catch(e) {
-            console.warn(e);
+            // console.warn(e);
 
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Unable to access profile storage.' }
+            throw e;
         }
     }
 
@@ -238,7 +256,7 @@ export class UsersController {
 
 
     // Create a User Profile, must have a verified email address
-    createNewProfile = async({ set, body, user, session, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, elysia_jwt, authMethod }:any) => {
+    createNewProfile = async({ set, body, user:{ id, firstname, lastname, email, phone, profileId }, request:{ headers }, jwt, authMethod }:any) => {
 
         try {
             // Checking if ProfileID exists in session/token
@@ -247,15 +265,16 @@ export class UsersController {
                 const profile = await db.profile.findUnique({ where: {id:profileId}, select: {id:true} })
 
                 if(profile){
-                    set.status = HttpStatusEnum.HTTP_409_CONFLICT;
-                    return { message: `You already have a profile.` }
+                    throw new ConflictError("You already have a profile.");
+                    // set.status = HttpStatusEnum.HTTP_409_CONFLICT;
+                    // return { message: `You already have a profile.` }
                 }
             }
 
 
             // console.log('Checking for pre-existing Profile of similar credentials...');
             // Check DB for profile of same nrc/passport number
-            const conflictingProfile = await db.profile.findFirst({
+            const conflictingProfile: Partial<Profile>|null = await db.profile.findFirst({
                 where: {
                     documentId: body.documentId,
                     documentType: body.documentIdType
@@ -274,17 +293,19 @@ export class UsersController {
                 conflict = conflictingProfile?.documentId!
 
                 set.status = HttpStatusEnum.HTTP_302_FOUND;
-                return { message: `That ${conflictingProfile.documentType.toWellFormed()} number is already used`, note: `Similar ${conflictingProfile.documentType.toWellFormed()} exists in the system` };
+                return { message: `That ${conflictingProfile.documentType!.toWellFormed()} number is already used`, note: `Similar ${conflictingProfile.documentType!.toWellFormed()} exists in the system` };
             }
 
             // let uploadedImage: {etag:string; versionId:string|null}|null = null;
             let uploadedImage: IImageUpload|null = null;
+            let uploadError: string|null = null;
 
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
             if(body.photo){
                 try{
                     uploadedImage = await this.fileService.uploadPhoto(body.photo, BucketType.USER, id, usernameFromEmail(email), false)
-                } catch(err) {
+                } catch(err:any) {
+                    uploadError = err.toString();
                     console.error(err);
                 }
             }
@@ -299,11 +320,11 @@ export class UsersController {
                 documentType: body.documentType,
                 gender: body.gender,
                 bio: body.bio ?? null,
-                email: body.email ?? email,
-                phone: body.phone ?? phone,
+                email: email,
+                phone: phone ?? body.phone,
                 supportLevel: autoUser?.supportLevel ?? 0,
                 userId: id,
-                photoId: uploadedImage?.name ?? null
+                photo: uploadedImage?.name ?? null
             }
 
             // Disabled, to keep auto-users list forever
@@ -311,15 +332,27 @@ export class UsersController {
             //     await db.autoEnrol.update({ where: { email: email}, data: { isActive: false, isComment: `Used for Profile Registration at ${new Date()}` } });
             // }
 
-            const newProfile: any = await this.userSvc.createUserProfile(ammendedProfile)
-            
+            // Create a new User Profile
+            const newProfile: ProfileWithSafeUserModel = await this.userSvc.createUserProfile(ammendedProfile)
+
+
             if(!newProfile){
-                set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-                return { message: 'Problem processing profile submission.' }
+                // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+                // return { message: 'Problem processing profile submission.' }
+                throw new InternalServerError("Error processing profile submission.");
             }
 
+            // TODO: Ideally have the profile created as inactive, until approven by a case officer
+            // Payment could be an option or simply a document verification
+
+            redisMessagingService.publish('user-events', {
+                action: "user_profile-created",
+                user: newProfile
+            });
+
+            
             // Generate access token using new profile details
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, elysia_jwt, newProfile.user, headers, undefined);
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, newProfile.user!, headers, undefined);
             if(authMethod === 'JWT'){
                 set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
             } else if (authMethod === 'Cookie'){
@@ -338,8 +371,15 @@ export class UsersController {
             //     return { message: err.message }
             // }
 
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: 'Problem processing Profile submission', note:err }
+            if(err instanceof S3Error){                
+                set.status = HttpStatusEnum.HTTP_503_SERVICE_UNAVAILABLE;
+                return { message: err.message, note: err.code ?? err.name }
+            }
+
+            throw err;
+
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: 'Problem processing Profile submission', note:err }
         }
     }
 
@@ -374,6 +414,12 @@ export class UsersController {
     }
 
     /* PUT */
+
+    /* PATCH */
+
+    updateSubscription = async({ set, user }:any) => {
+        // userId:string, subscription:SubscriptionType
+    }
 
     // Updates a User profile
     updateUserProfile = async({ set, params, user, body }:any) => {
@@ -420,7 +466,7 @@ export class UsersController {
                 where: { userId: user_id },
                 data: {
                     bio: data.bio,
-                    photoId: uploadedImage?.name ?? null,
+                    photo: uploadedImage?.name ?? null,
                     firstname: data.firstname,
                     lastname: data.lastname,
                     gender: user_id ? data.gender : undefined,
@@ -448,8 +494,51 @@ export class UsersController {
         }
     }
 
+    // Updates a User's roles [STAFF]
+    addUserRoles = async({ set, params, body }:any) => {
+        const user_id = params.userId;
+        const newRoles: Role[] = body.newRoles;
+        const oldRoles: Role[] = body.oldRoles;
+
+        try {
+            let user: User|null = await redisGet(`user:${user_id}`);
+
+            if(!user){
+                user = await db.user.findUnique({
+                    where: { id: user_id}
+                });
+
+                if(!user){
+                    throw new NotFoundError("No User with that ID");
+                }
+
+                await redisSet(`user:${user_id}`, user, 5)
+            }
+
+            const roles = this.userSvc.modifyRoles.add(user.roles, newRoles, oldRoles)
+
+            const dbUser: User|null = await db.user.update({
+                where: { id: user_id },
+                data: { roles: roles }
+            });
+
+            const cleanUser: SafeUser = this.userSvc.sanitizeUserObject(dbUser);
+
+
+            set.status = HttpStatusEnum.HTTP_200_OK;
+            return { data: cleanUser, message: `Updated User Roles ${cleanUser.roles}` };
+        } catch (error) {
+            // console.error(error);
+
+            throw error;
+
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: 'Could not modify User Profile', note: error }
+        }
+    }
+
     // Deactivates a User account [ADMIN]
-    async deactivateUser ({ user, set, params, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> {
+    deactivateUser = async({ user, set, params, body: { isComment } }:any):Promise<{data: Partial<User>, message: string}|{message: string}> => {
         const user_id = params?.userId ?? user.id ?? null;
         const now = new Date();
         const theComment = isComment ?? `Deactivated on ${formatDate(now)}`;

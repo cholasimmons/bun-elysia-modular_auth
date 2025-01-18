@@ -1,10 +1,10 @@
-import { NotFoundError } from "elysia";
 import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
 import consts from "~config/consts";
-import { cache, redisGet, redisSet } from "~config/redis";
-import { ProfileWithPartialUser } from "./users.model";
+import { redisGet, redisSet } from "~config/redis";
+import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
+import { InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
 
 
 
@@ -49,13 +49,13 @@ export class UsersService {
     }
 
     // Returns a unique User from the DB with particular ID string
-    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<Partial<User>> {
+    async getUser(userId: string, opts?:{ profile?:boolean, isActive?:boolean }): Promise<PrismaUserWithOptionalProfile> {
         try {
-            let user = await redisGet<Partial<User>>(`user:${userId}`);
+            let user: PrismaUserWithOptionalProfile|null = await redisGet<PrismaUserWithOptionalProfile|null>(`user:${userId}`);
 
             if(!user){
                 user = await db.user.findUnique({
-                    where: { id: userId },
+                    where: { id: userId, isActive: opts?.isActive },
                     include: {
                         profile: opts?.profile ?? false,
                         authSession: false,
@@ -64,9 +64,10 @@ export class UsersService {
 
                 if(!user) throw new NotFoundError('Could not find user with that ID');
 
-                delete user.hashedPassword;
+                let cleanUser: PrismaUserWithOptionalProfile|any = { ...user}
+                delete cleanUser.hashedPassword;
 
-                await redisSet(`user:${userId}`, user);
+                await redisSet(`user:${userId}`, cleanUser);
             }
 
             return user;
@@ -76,52 +77,84 @@ export class UsersService {
         }
     }
 
-    async createUserProfile(data: any): Promise<Profile> {
+    async createUserProfile(data: any): Promise<ProfileWithSafeUserModel> {
         const { firstname, lastname, documentId, documentType, gender, bio, email, phone,
-            supportLevel, userId, photoId } = data;
+            supportLevel, userId, photo } = data;
         try {
             // console.log("Received User Profile data: ",data);
-            
-            let freshUser:any = await db.user.update({
-                where:{
-                    id: userId
+
+            // 1. Create the Profile
+            const newProfile: Profile|null = await db.profile.create({
+                data: {
+                    firstname, lastname,
+                    documentId, documentType,
+                    gender, bio,
+                    email, phone,
+                    supportLevel,
+                    photo,
+                    subscriptionType: SubscriptionType.FREE,
+                    userId: userId
                 },
-                data:{
-                    profile: {
-                        create: {
-                            firstname, lastname, documentId, documentType, gender, bio, email, phone, supportLevel, photoId, subscriptionType: SubscriptionType.FREE,
-                        }
-                    }
-                },
+            });
+
+            // 2. Update the User with profileId
+            const userWithProfile: PrismaUserWithProfile|null = await db.user.update({
+                where: { id: userId },
+                data: { profileId: newProfile.id },
                 include: { profile: true }
-            })
+            });
+            
+            // let freshUser:PrismaUserWithProfile|null = await db.user.update({
+            //     where:{
+            //         id: userId
+            //     },
+            //     data:{
+            //         firstname: firstname,
+            //         lastname: lastname,
+            //         phone: phone,
+            //         profile: {
+            //             create: {
+            //                 firstname, lastname,
+            //                 documentId, documentType,
+            //                 gender, bio,
+            //                 email, phone,
+            //                 supportLevel,
+            //                 photo,
+            //                 subscriptionType: SubscriptionType.FREE,
+            //             }
+            //         }
+            //     },
+            //     include: { profile: true }
+            // })
 
-            delete freshUser.hashedPassword;
-
-            if(!freshUser.profileId){
-                throw 'Could not update User with new User Profile'
+            if(!userWithProfile.profile){
+                throw new InternalServerError('Could not update User with new User Profile')
             }
 
-            // return user object without sensitive data
-            const returnSafeUser = {
-                ...freshUser.profile,
-                user:{
-                    id: freshUser.id,
-                    firstname: freshUser.firstname,
-                    lastname: freshUser.lastname,
-                    username: freshUser.username,
-                    roles: freshUser.roles,
-                    email: freshUser.email,
-                    emailVerified: freshUser.emailVerified,
-                    createdAt: freshUser.createdAt,
-                    updatedAt: freshUser.updatedAt,
-                    profileId: freshUser.profile.id
+            // return Profile with user object WITHOUT sensitive data
+            const returnSafeUserProfile: ProfileWithSafeUserModel|any = {
+                ...userWithProfile.profile,
+                // gender: String(freshUser.profile?.gender),
+                user: {
+                    id: userWithProfile.id!,
+                    firstname: userWithProfile.firstname,
+                    lastname: userWithProfile.lastname,
+                    username: userWithProfile.username,
+                    phone: userWithProfile.phone ?? null,
+                    roles: userWithProfile.roles,
+                    email: userWithProfile.email,
+                    emailVerified: userWithProfile.emailVerified,
+                    createdAt: userWithProfile.createdAt,
+                    updatedAt: userWithProfile.updatedAt,
+                    profileId: userWithProfile.profileId ?? null,
+                    isActive: userWithProfile.isActive,
+                    isComment: userWithProfile.isComment
                 } 
             }
 
-            await redisSet(`profile:user:${freshUser.id}`, freshUser.profile, 7200)
+            await redisSet(`profile:user:${userWithProfile.id}`, returnSafeUserProfile, 3)
 
-            return returnSafeUser as Profile;
+            return returnSafeUserProfile as ProfileWithSafeUserModel;
         } catch(e) {
             console.error("Could not persist new profile");
             throw e
@@ -150,53 +183,60 @@ export class UsersService {
     // }
 
     modifyRoles = {
-         add(roles:Role[], newRole: Role, replaceRole: Role): Role[] {
-
-            const replaceIndex = roles.indexOf(replaceRole);
-
-            if (replaceIndex !== -1) {
-                // If the new role already exists, replace it
-                roles[replaceIndex] = newRole;
-            } else {
-                // If the new role doesn't exist, append it
-                roles.push(newRole);
-            }
-        
+        add(roles: Role[], newRoles: Role | Role[], replaceRoles?: Role | Role[]): Role[] {
+            // Normalize to array
+            const newRolesArray = Array.isArray(newRoles) ? newRoles : [newRoles];
+            const replaceRolesArray = replaceRoles ? (Array.isArray(replaceRoles) ? replaceRoles : [replaceRoles]) : [];
+    
+            replaceRolesArray.forEach(replaceRole => {
+                const replaceIndex = roles.indexOf(replaceRole);
+                if (replaceIndex !== -1) {
+                    // Replace the role if it exists
+                    roles[replaceIndex] = newRolesArray.shift()!;
+                }
+            });
+    
+            // Add remaining new roles if they were not used in replacement
+            roles.push(...newRolesArray.filter(newRole => !roles.includes(newRole)));
+    
             return roles;
         },
         
-        remove(roles:Role[], removeRole: Role): Role[] {
-
-            const removeIndex = roles.indexOf(removeRole);
-
-            if (removeIndex !== -1) {
-                // If the role already exists, remove it
-                roles.splice(removeIndex, 1);
-            }
-        
+        remove(roles: Role[], removeRoles: Role | Role[]): Role[] {
+            // Normalize to array
+            const removeRolesArray = Array.isArray(removeRoles) ? removeRoles : [removeRoles];
+    
+            // Remove all specified roles
+            removeRolesArray.forEach(removeRole => {
+                const removeIndex = roles.indexOf(removeRole);
+                if (removeIndex !== -1) {
+                    roles.splice(removeIndex, 1);
+                }
+            });
+    
             return roles;
-        }
+        },
     }
 
 
     // Clean full User object, removing sessions, password, OAuth IDs and profile
-    async sanitizeUserObject(user: User, opts?:{id?:boolean, verified?:boolean, active?:boolean, comment?:boolean}){
-        let tempUser:any = user;
+    sanitizeUserObject(user: User):SafeUser{
+        let tempUser:User = user;
 
-        delete tempUser.hashedPassword;
+        // delete tempUser.hashedPassword;
 
-        const cleanUser: Partial<User> = {
-            id: opts?.id ? tempUser.id : undefined,
+        const cleanUser: SafeUser = {
+            id: tempUser.id,
             firstname: tempUser.firstname,
             lastname: tempUser.lastname,
             username: tempUser.username,
             roles: tempUser.roles,
             email: tempUser.email,
-            emailVerified: opts?.verified ? tempUser.emailVerified : undefined,
+            emailVerified: tempUser.emailVerified,
             phone: tempUser.phone,
             profileId: tempUser.profileId,
-            isActive: opts?.active ? tempUser.isActive : undefined,
-            isComment: opts?.comment ? tempUser.isComment : undefined,
+            isActive: tempUser.isActive,
+            isComment: tempUser.isComment,
             createdAt: tempUser.createdAt,
             updatedAt: tempUser.updatedAt,
         };
@@ -205,33 +245,42 @@ export class UsersService {
     }
 
 
-    async getProfileByUserId(userId:string, opts?:{ account:boolean }){
+    async getProfileByUserId(userId:string, query?:{ account?:boolean, subscription?: boolean, usedCoupons?:boolean }){
         try {
-            let cachedProfile = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);
+            let cachedProfile: ProfileWithPartialUser|null = await redisGet<ProfileWithPartialUser>(`profile:user:${userId}`);
+
+            // dynamic setting to retrieve user object
+            const includeUser = query?.account
+            ? {
+                select: {
+                    id: true,
+                    firstname: true,
+                    lastname: true,
+                    username: true,
+                    roles: true,
+                    email: true,
+                    emailVerified: true,
+                    phone: true,
+                    isActive: true,
+                    isComment: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            } : false 
+            
 
             if(!cachedProfile){
-                cachedProfile = await db.profile.findUnique({ where: { userId: userId }, include: {
-                    user: opts?.account ? {
-                        select: {
-                            id: true,
-                            firstname: true,
-                            lastname: true,
-                            username: true,
-                            roles: true,
-                            email: true,
-                            emailVerified: true,
-                            phone: true,
-                            isActive: true,
-                            isComment: true,
-                            createdAt: true,
-                            updatedAt: true,
-                        }
-                    } : false
-                }});
+                cachedProfile = await db.profile.findUnique({ where: { userId: userId },
+                    include: {
+                        user: includeUser,
+                        subscription: query?.subscription ?? false,
+                        usedCoupons: query?.usedCoupons ?? false
+                    }
+                });
 
-                if(!cachedProfile) throw new NotFoundError(`Profile for User: ${userId} unavailable in database`);
+                if(!cachedProfile) throw new NotFoundError(`Profile for User: ${userId} unavailable.`);
 
-                await redisSet(`profile:user:${userId}`, cachedProfile)
+                await redisSet(`profile:user:${userId}`, cachedProfile, 1)
             }            
 
             return cachedProfile;
@@ -260,17 +309,22 @@ export class UsersService {
         console.log(`Sending message to ${userProfile.firstname}`);
         // TODO: Implement timeout to limit the resends
 
-        try {
-            await this.resend.emails.send({
+        return await this.resend.emails.send({
                 from: consts.server.email, // 'onboarding@resend.dev',
                 to: userProfile?.email!,
                 subject: subject ?? `System message | ${consts.server.name}`,
                 html: message,
             });
-        } catch (error) {
-            console.error(error);
-            
-            throw 'Could not send email.'
-        }
+    }
+
+    async modifySubscription(userId:string, subscription:SubscriptionType ): Promise<Profile> {
+        return await db.profile.update({
+            where: {
+                userId: userId
+            },
+            data: {
+                subscriptionType: subscription
+            }
+        });
     }
 }

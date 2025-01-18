@@ -1,6 +1,6 @@
 import Elysia from "elysia";
 
-const customResponse = ({ error, response, set }:{ error:any, response: any, set: any }): any => {
+const customResponse = (({ error, response, set }: any) => {
     if (typeof set !== 'object' || set === null) {
         throw new Error('Invalid set object');
     }
@@ -52,6 +52,7 @@ const customResponse = ({ error, response, set }:{ error:any, response: any, set
     };
  
     return responseObject;
-};
+    
+});
 
 export default customResponse;

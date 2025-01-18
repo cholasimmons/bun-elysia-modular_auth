@@ -1,29 +1,28 @@
 import { HttpStatusEnum } from 'elysia-http-status-code/status';
 import consts from '~config/consts';
 import { zambiaProvinces } from './provinces';
+import { DatabaseError } from 'src/_exceptions/custom_errors';
 
 export class RootController {
   constructor(){}
 
-  async helloWorld({set, user, session, request:{ headers }}: any) {
+  async helloWorld({set, user, request:{ headers }}: any) {
+
     try {
-      console.log("User: ",user);
-      console.log("Session: ",session);
-      console.log("ProfileID: ",user?.profileId ?? null);
-      console.log(headers.get('accept'));
       
       const isBrowser = headers.get('accept').includes('text/html');
       
       return isBrowser ? Bun.file('public/welcome.html') : { message: `Welcome to the ${consts.server.name} Server! Version ${consts.server.version}` }
     } catch (error) {
-      console.error(error);
+      // console.error(error);
 
-      set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-      return { message: `Error occurred` }
+      // Re-throw to let global error handler handle it
+      throw error;
     }
   }
 
-  async helloTime({ params, store:{timezone} }: any) {
+  async helloTime({ params, store }: any) {
+    const timezone = store?.timezone;
     const currentHour = new Date().getHours();
 
     function getGreeting(): string {
@@ -49,8 +48,8 @@ export class RootController {
 
   async htmx({ hx, ip }: any) {
     
-    console.log(ip);
-    console.log(hx);
+    console.log("ip ", ip);
+    console.log("hx", hx);
     try {
       return { data: hx ? {
         request: hx.request,

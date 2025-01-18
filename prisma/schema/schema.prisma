@@ -54,7 +54,7 @@ model Session {
   // host          String
   // userAgentHash String?  @map("user_agent_hash")
   deviceIdentifier  String  @map("device_identifier")
-  method        String   @map("authentication_method")
+  authType      String?   @map("x_client_type")
   os            String?
   ip            String    @map("ip_addr")
   ipCountry     String?  @map("ip_country")
@@ -96,7 +96,7 @@ model Profile {
   user         User?        @relation("user_profile", fields: [userId], references: [id])
   documentId   String       @map("document_id") // NRC / Passport ID  
   documentType DocumentType @map("document_type")
-  photoId      String?
+  photo        String?
   gender       Gender       @default(OTHER)
 
   firstname    String

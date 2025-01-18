@@ -1,5 +1,5 @@
 import { TSchema, t } from "elysia";
-import { Currency } from "@prisma/client";
+import { Currency, Prisma } from "@prisma/client";
 
 
 export const CreateWalletDTO: TSchema = t.Object({
@@ -9,11 +9,11 @@ export const CreateWalletDTO: TSchema = t.Object({
 });
 export const ViewWalletDTO: TSchema = t.Object({
     id: t.String(),
-    userProfileId: t.Optional(t.String()),
+    userProfileId: t.String(),
     userProfile: t.Optional(t.Any()),
     balance: t.Numeric(),
     currency: t.Enum(Currency),
-    transactions: t.Optional(t.Array(t.Object(t.Any()))),
+    transactions: t.Optional(t.Array(t.Any())),
 
     isActive: t.Boolean(),
     isComment: t.Optional(t.String()),
@@ -22,15 +22,16 @@ export const ViewWalletDTO: TSchema = t.Object({
 });
 export const ViewWalletLiteDTO: TSchema = t.Object({
     id: t.String(),
+    userProfileId: t.Optional(t.String()),
     userProfile: t.Optional(t.Any()),
     balance: t.Numeric(),
     currency: t.Enum(Currency),
-    transactions: t.Optional(t.Array(t.Object(t.Any())))
+    transactions: t.Optional(t.Array(t.Any()))
 });
 
 export const WalletQueriesDTO = t.Object({
     transactions: t.Optional(t.BooleanString()),
-    userProfile: t.Optional(t.BooleanString())
+    profile: t.Optional(t.BooleanString())
 })
 
 export const MakePaymentDTO = t.Object({
@@ -44,3 +45,11 @@ export const MakePaymentDTO = t.Object({
     longitude: t.Optional(t.Number()),
     latitude: t.Optional(t.Number())
 })
+
+
+export type WalletWithOptionalChildren = Prisma.WalletGetPayload<{
+    include: {
+        userProfile?: true,
+        transactions?: true
+    }
+}>

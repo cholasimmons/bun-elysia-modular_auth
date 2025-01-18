@@ -227,6 +227,7 @@ export class FilesService {
             return { ...metadata, name: uniqueFileName};
         } catch (error:any) {
             console.error(error);
+            
             throw error;
         }
     }

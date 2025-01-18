@@ -1,9 +1,8 @@
-import { DiscountType, MessageDelivery, MessagePriority } from "@prisma/client";
+import { MessageDelivery, MessagePriority } from "@prisma/client";
 import { t } from "elysia";
 
 
 export interface ICreateMessage {
-    senderId: string,
     recipientId: string,
     title: string,
     message: string,
@@ -16,17 +15,18 @@ export const CreateMessageDTO = t.Object({
     recipientId: t.String(),
     title: t.String(),
     message: t.String(),
-    priority: t.Enum(MessagePriority),
-    deliveryMethods: t.Enum(MessageDelivery)
+    priority: t.Optional(t.Enum(MessagePriority)),
+    deliveryMethods: t.Optional(t.Array(t.Enum(MessageDelivery)))
 })
 
-export const ViewMessageDTO = t.Object({
+export const MessageResponseDTO = t.Object({
     id: t.String(),
-    recipientId: t.String(),
+    senderId: t.String(),
+    // recipientId: t.String(),
     title: t.String(),
     message: t.String(),
     priority: t.Enum(MessagePriority),
-    deliveryMethods: t.Enum(MessageDelivery),
+    deliveryMethods: t.Array(t.Enum(MessageDelivery)),
     isRead: t.Boolean(),
     isArchived: t.Boolean(),
 

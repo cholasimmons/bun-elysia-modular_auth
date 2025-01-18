@@ -12,16 +12,20 @@ import { GitHubUserResult, GoogleUserResult, OAuth2Providers } from "./auth.mode
 import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
 import { parseCookies, serializeCookie } from "oslo/cookie";
 import { splitWords, usernameFromEmail } from "~utils/utilities";
-import { blacklistToken, cache, redisSet } from "~config/redis";
+import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
+import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
+import { PrismaUserWithProfile, SafeUser } from "~modules/users/users.model";
+import { emailQueue } from "src/_subscriptions/queues";
 
 export class AuthController {
     // private authService: AuthService;
     private userService: UsersService;
+    private authService = AuthService.getInstance();
     url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${consts.api.versionPrefix}${consts.api.version}`;
 
-    constructor(private authService: AuthService) {
-        // this.authService = authService;
+    constructor() {
+        this.authService = AuthService.getInstance();
         this.userService = new UsersService();
     }
 
@@ -42,7 +46,7 @@ export class AuthController {
         return isBrowser ? Bun.file('public/register.html') : { message: 'Use POST instead'}
     }
 
-    login = async ({ set, request:{headers}, body, elysia_jwt, authMethod, cookie:{lucia_auth_cookie}, session }: any) => {
+    login = async ({ set, request:{headers}, body, jwt, authMethod, cookie:{auth_cookie}, session }: any) => {
         const {email, password, rememberme} = body;
         
         try {
@@ -51,23 +55,27 @@ export class AuthController {
             this.authService.validateCredentials(email.toLowerCase(), password)
 
             // find user by Key, and validate password
-            let userExists:any = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
+            let userExists:PrismaUserWithProfile|null = await db.user.findUnique({ where: { email: email.toLowerCase() }, include: { profile: true } });
+            
             if(!userExists){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Invalid User credentials' };
+                throw new NotFoundError("Invalid credentials");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'Invalid User credentials' };
             }
 
             const isMatch = await Bun.password.verify(password, userExists.hashedPassword);
 
             if(!isMatch){
-                set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-                return { message: 'Invalid credentials' };
+                throw new AuthenticationError("Invalid login credentials");
+                // set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+                // return { message: 'Invalid credentials' };
             }
 
 
             if(userExists.isActive === false || !userExists.isActive){
-                set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
-                return { message: 'User access is revoked.', data: userExists.isComment ?? "N/A" };
+                throw new AuthenticationError("User access is revoked", 403, userExists.isComment ?? "N/A");
+                // set.status = HttpStatusEnum.HTTP_403_FORBIDDEN;
+                // return { message: 'User access is revoked.', note: userExists.isComment ?? "N/A" };
             }
 
             const sessions = await lucia.getUserSessions(userExists.id);
@@ -78,6 +86,7 @@ export class AuthController {
                 await lucia.invalidateSession(tempSessId);
             }
 
+            const safeUser: SafeUser = this.userService.sanitizeUserObject(userExists);
             const sanitizedUser = {
                 firstname: userExists.firstname,
                 lastname: userExists.lastname,
@@ -93,21 +102,24 @@ export class AuthController {
                 sessions: sessions.length
             }
 
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, elysia_jwt, userExists, headers, rememberme);
+            // Publish that a User successfully logged in
+            redisMessagingService.publish('user', {
+                action: "user:login",
+                user: safeUser
+            });
+
+            // RAW redis function
+            await redisSet(`user:${userExists.id}`, safeUser, 5);
+
+            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, userExists, headers, rememberme);
             if(authMethod === 'JWT'){
                 set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
             } else if (authMethod === 'Cookie'){
                 set.headers["Set-Cookie"] = tokenOrCookie.serialize();
             }
 
-            // DELETE PASSWORD FROM OBJECT FOR SAFETY
-            delete userExists.hashedPassword;
-            
-            // RAW redis function
-            const rr = await redisSet(`user:${userExists.id}`, userExists);
-            
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: userExists, message: 'Successfully logged in', note: { sessions: sessions.length} };
+            return { data: sanitizedUser, message: 'Successfully logged in', note: { sessions: sessions.length} };
         } catch (e:any) {
             console.error(e);
             
@@ -132,13 +144,14 @@ export class AuthController {
             }
 
             console.error(e);
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-            return { message: "An unknown login error occurred" };
+            throw e;
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+            // return { message: "An unknown login error occurred" };
         }
     }
 
 
-    signup = async({ set, body } :any) => {
+    signup = async({ set, body, request:{ headers } } :any) => {
         const { firstname, lastname, email, phone, password, confirmPassword} = body;
         
         // Create User 
@@ -161,7 +174,7 @@ export class AuthController {
             });
 
             const uid = generateId(16);
-            const newUser: any = await db.user.create({ data: {
+            const newUser: User|null = await db.user.create({ data: {
                 id: uid,
                 firstname,
                 lastname,
@@ -170,7 +183,7 @@ export class AuthController {
                 phone: (autoUser?.phone ?? phone) ?? null,
                 emailVerified: false,
                 isActive: true,
-                roles: autoUser?.roles,
+                roles: autoUser ? autoUser?.roles : [Role.GUEST],
                 hashedPassword
             } }) as User;
 
@@ -187,23 +200,28 @@ export class AuthController {
                     });
             }
 
-            // if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
-            //     await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
-            // }
+            if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
+                await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
+            }
 
-            // const session = await this.authService.createLuciaSession(result.id, headers);
-            // const sessionCookie = lucia.createSessionCookie(session.id);
+            const session = await this.authService.createLuciaSession(newUser.id, headers);
+            const sessionCookie = lucia.createSessionCookie(session.id);
 
-            // DELETE PASSWORD FROM RETURN OBJECT
-            delete newUser.hashedPassword;
+            const safeUser: SafeUser = this.userService.sanitizeUserObject(newUser);
+
+            redisMessagingService.publish('user', {
+                action: "user:register",
+                user: safeUser
+            });
 
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return {
-                data: newUser,
+                data: safeUser,
                 message: autoUser ? `${(autoUser.roles?.length ?? 'Nil')} roles Account successfully created, ${firstname} ${lastname}` : `Guest Account successfully created (${firstname} ${lastname})`,
                 note: 'User account created' + autoUser ? ' via Auto-enrol' : '. No Auto-enrol'
             };
+
         } catch (e) {
             console.error(e);
 
@@ -218,15 +236,16 @@ export class AuthController {
                 e instanceof Error
                 && e.message === "AUTH_DUPLICATE_KEY_ID"
             ) {
-                set.status = HttpStatusEnum.HTTP_409_CONFLICT;
-                return { message: "that email address is already taken" };
+                throw new ConflictError("That email address is taken", HttpStatusEnum.HTTP_409_CONFLICT);
+                // set.status = HttpStatusEnum.HTTP_409_CONFLICT;
+                // return { message: "that email address is already taken" };
             }
-            set.status = 500
-            return { message: "An unknown auth error occurred" };
+            
+            throw e;
         }
     }
 
-    logout = async ({ set, request:{headers}, session, cookie, elysia_jwt, authMethod }: any) => {
+    logout = async ({ set, request:{headers}, session, cookie, jwt, authMethod }: any) => {
 
         try {
             // Determine the authentication method
@@ -251,7 +270,7 @@ export class AuthController {
                 
             } else if (authMethod === 'JWT') {
                 // Handle JWT-based authentication
-                if (!await elysia_jwt.verify(token)) {
+                if (!await jwt.verify(token)) {
                     set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
                     return { message: 'Invalid or expired token' };
                 }
@@ -260,7 +279,7 @@ export class AuthController {
                 await blacklistToken(token, 60 * 60); // Adjust the expiry as needed
     
                 // Optionally sign out the JWT token
-                await elysia_jwt.sign(null);
+                await jwt.sign(null);
     
                 // No need to handle cookies for JWT auth
             } else {
@@ -281,7 +300,7 @@ export class AuthController {
         
     }
 
-    async getAllMySessions({set, user}:any){
+    getAllMySessions = async({set, user}:any) => {
         try {
             const sessions = await lucia.getUserSessions(user.id);
 
@@ -320,7 +339,7 @@ export class AuthController {
             await lucia.invalidateUserSessions(user.id);
             await db.user.update({ where: { id: user.id }, data: { emailVerified: true }})
 
-            const session = await this.authService.createLuciaSession(user.id, headers);
+            const session = await this.authService.createLuciaSession(user.id, headers, user.profileId);
             const sessionCookie = lucia.createSessionCookie(session.id);
 
             set.status = HttpStatusEnum.HTTP_302_FOUND;
@@ -351,6 +370,7 @@ export class AuthController {
             return { message: `Verification code sent to ${user.email}` }
         } catch (error) {
             console.error(error);
+            throw error;
 
             set.status = 500;
             return { message: 'Unable to send verification code' }
@@ -364,8 +384,9 @@ export class AuthController {
             const user = await db.user.findUnique({ where:{ email: email }, select: { id: true } });
 
             if(!user){
-                set.status = 404;
-                return { message: 'An account with that email does not exist' }
+                throw new NotFoundError("An account with that email does not exist");
+                // set.status = 404;
+                // return { message: 'An account with that email does not exist' }
             }
 
             const verificationToken = await this.authService.createPasswordResetToken(user.id);
@@ -374,15 +395,15 @@ export class AuthController {
             this.authService.sendPasswordResetToken(email, verificationLink);
 
             set.status = 200;
-            return { message: `A password reset link has been sent to your email.\n Expires in 30 minutes` };
+            return { message: `Password reset link sent to your email.\n Validity: 30 minutes` };
         } catch (e) {
-            
+            throw e
         }
     }
 
 
 
-    async getResetPassToken({ set, request:{headers}, params:{token} }:any) {
+    getResetPassToken = async({ set, request:{headers}, params:{token} }:any) => {
         set.status = 200;
         return { message: 'This route should take you to the app\'s page for password resetting' }
         

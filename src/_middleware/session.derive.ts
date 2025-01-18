@@ -1,40 +1,53 @@
 // src/middleware.ts
 import { verifyRequestOrigin } from "oslo/request";
+import { AuthenticationError, AuthorizationError, InternalServerError } from "src/_exceptions/custom_errors";
 import { lucia } from "~config/lucia";
 
-export const sessionDerive = async ({ request:{ headers, method }, cookie, elysia_jwt }:any) => {
+export const sessionDerive = async ({ request:{ headers, method }, cookie, jwt, locals }:any) => {
     // console.debug("Method: ", method);
+    // console.debug("Locals: ", locals);
     // console.debug("Headers: ", headers);
     
-    // Check if the Authentication-Method header is present
-    const authMethod = headers.get('Authentication-Method');
+    // Get new authentication-mode header
+    const authMethod = headers.get('X-Client-Type');
+
+    // Check if the authentication-mode header is present
     if (!authMethod) {
         // If the header is missing, return an error response
-        return { user: null, session: null, authMethod };
+        return { user: null, session: null };
     }
 
-    if (authMethod === 'Cookie') {
+    if (authMethod === "Cookie") {
+        
         // CSRF check
 		if (method !== "GET") {
 			const originHeader = headers.get("Origin"); // e.g: http://localhost:3000
 			// NOTE: You may need to use `X-Forwarded-Host` instead
 			const hostHeader = headers.get("Host");
+
+            if(!originHeader || !hostHeader){
+                console.error("CSRF Check fail. Origin and Host headers required");
+                throw new InternalServerError("CSRF Check iminent fail");
+            }
             
-			if (!originHeader || !hostHeader || !verifyRequestOrigin(originHeader, [hostHeader])) {
+			if (!verifyRequestOrigin(originHeader, [hostHeader])) {
+                
                 return {
 					user: null,
-					session: null, authMethod
+					session: null,
+                    authMethod
 				};
 			}
 		}
 
         // use headers instead of Cookie API to prevent type coercion
-        const cookieHeader = headers.get("Cookie");
-        const sessionId = lucia.readSessionCookie(cookieHeader ?? "");
+        const cookieHeader = headers.get("Cookie") ?? "";
+        const sessionId = lucia.readSessionCookie(cookieHeader);
         if (!sessionId) {
             return {
                 user: null,
-                session: null, authMethod
+                session: null,
+                authMethod: authMethod
             };
         }
 
@@ -70,12 +83,24 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie, elysi
             return { user: null, session: null, authMethod };
         }
     
-        const tokenUser = await elysia_jwt.verify(token);
+        const tokenUser = await jwt.verify(token);
         
         if(!tokenUser){
             return { user: null, session: null, authMethod };
         }
         
         return { user:tokenUser, session:null, authMethod };
-    }   
+    } else {
+        // Fallback to User-Agent parsing
+        const userAgent = headers.get('user-agent');
+        if (/mobile|android|ios|flutter/i.test(userAgent)) {
+            locals.isNativeApp = true;
+        } else if (/mozilla|chrome|safari|firefox|edge/i.test(userAgent)) {
+            locals.isBrowser = true;
+        } else {
+            locals.isUnknown = true;
+            // If an unsupported authentication method is specified, return an error response
+            return { user: null, session: null, authMethod };
+        }
+    }
 }

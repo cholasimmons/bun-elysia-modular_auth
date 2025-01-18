@@ -2,35 +2,42 @@ import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { CustomError } from "src/_modules/root/app.models";
 
   
-  function handleNotFoundError(error: CustomError, set: any) {
+  function handleRouteNotFoundError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
     return { message: 'Route not found 😔', code: set.status };
   }
   
+  function handleNotFoundError(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+    return { code: error.status ?? set.status, message: error.message ?? 'Resource not found', note: error.cause ?? 'Resource not found' };
+  }
+  
   function handleInternalServerError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { message: 'Internal Server Error ⚠️', code: set.status, error: error };
+    return { message: error.message ?? 'Internal Server Error ⚠️', code: error.status ?? set.status, error: error.cause ?? error.name };
+  }
+  function handleError(error: CustomError, set: any) {
+    console.error(error);
+    
+    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { message: 'Internal Server Error ⚠️', code: error.status ?? set.status, error: error.cause ?? error.name };
   }
   
   function handleValidation(error: CustomError, set: any) {
-    console.error(error);
     
-    set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-    if (
-      error.validator &&
-      error.validator.schema &&
-      error.validator.schema.properties
+    set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
+    if (error?.validator?.schema?.properties
     ) {
       return {
         code: set.status,
-        message: 'Schema Validation Error 🚫',
-        error: error.validator.schema.properties,
+        message: error.validator.schema.properties.message.default ?? error.validator.schema.properties.message.error ?? 'Schema Validation Error 🚫',
+        error: 'Schema Validation Error'
       };
     } else {
       return {
         code: set.status,
-        message: 'Data Validation Error 🙈',
-        error: error,
+        message: error.message ?? error.name,
+        error: 'Data Validation Error 🙈'
       };
     }
   }
@@ -49,20 +56,37 @@ import { CustomError } from "src/_modules/root/app.models";
   }
 
   function handleDatabaseInitError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status, message: 'Our system ran into an error', note: 'Database has not been initialized' };
+    set.status = error.status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: set.status, message: 'Persistent storage error', note: 'Database has not been initialized' };
   }
   function handleDatabaseValidationError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'Data does not adhere to schema standard' };
   }
+
+  function handleDatabaseError(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+    return { code: error.status || set.status, message: 'A persistent storage error occurred', note: error.message };
+  }
+  
+  function handleMinioConnectError(error: CustomError, set: any) {
+    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
+    return { code: error.status ?? set.status, message: 'Unable to store S3 buffer', note: error.message };
+  }
+
   function handleOAuth2Error(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
     return { code: set.status , message: 'An authentication state error occured' };
   }
   function handleRequestError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: set.status , message: 'Database known request error' };
+    return { code: error.status ?? set.status, message: 'Database known request error', error: error.cause };
+  }
+
+  function handleConflictError(error:CustomError, set: any) {
+    const { status, message, name, cause} = error;
+    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return { code: status ?? set.status, message: message ?? 'A conflict was detected', note: cause ?? name };
   }
 
   function handleAuthorizationError(error: CustomError, set: any){
@@ -76,19 +100,20 @@ import { CustomError } from "src/_modules/root/app.models";
   }
 
   function handleNoAccessError(error: CustomError, set: any){
-    // set.status = HttpStatusEnum.HTTP_424_FAILED_DEPENDENCY;
+    set.status = HttpStatusEnum.HTTP_424_FAILED_DEPENDENCY;
     return {
       code: set.status,
       message: 'Insufficient privileges',
-      error: error.toString()
+      error: error.message ?? error.toString()
     }
   }
 
-  export function ErrorMessages(
-    code: string,
-    error: Error | CustomError,
-    set: any
-  ) {
+  export const errorMessages = ({
+    code,
+    error,
+    set
+  }:any) => {
+    console.error('Caught: error.name ', error.name);
 
     switch(error.name){
       case 'PrismaClientInitializationError':
@@ -97,13 +122,25 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseValidationError(error, set);
       case 'PrismaClientKnownRequestError':
         return handleRequestError(error, set);
-      // case 'Error':
-        // return handleOAuth2Error(error, set);
+      case 'ConnectionRefused':
+        return handleMinioConnectError(error, set);
+      case 'DatabaseError':
+        return handleDatabaseError(error, set);
+      case 'InternalServerError':
+        return handleInternalServerError(error, set);
+      case 'Error':
+        return handleError(error, set);
+      case 'VALIDATION':
+        return handleValidation(error, set);
+      case 'NotFoundError':
+        return handleNotFoundError(error, set);
+      case 'ConflictError':
+        return handleConflictError(error, set);
+      case 'S3Error':
+        return { message: error.message };
     }
 
     switch (code) {
-      case 'NOT_FOUND':
-        return handleNotFoundError(error, set);
       case 'INTERNAL_SERVER_ERROR':
         return handleInternalServerError(error, set);
       case 'PARSE':
@@ -118,11 +155,13 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleValidation(error, set);
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
+      case 'NoSuchBucket':
+        return { message: "Unable to store S3 buffer 😒" }
+      case 'NOT_FOUND':
+        console.log("an error ", code);
+        
+        // return handleNotFoundError(error, set);
       default:
-        console.error(error, 'Caught');
-        console.error(error.name, 'Name');
-        console.error(error.message, 'Message');
-
-        return { code: set.status, message: 'An unhandled error occurred', note: error };
+        return { code: set.status, message: 'An unhandled error occurred', note: error.message };
     }
   }

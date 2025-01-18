@@ -46,7 +46,7 @@ export const CouponsRouter = new Elysia({ prefix: '/coupons',
             404: t.Object({ message: t.String({ default: 'No coupon with that code was found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not retrieve your Coupons' }) }),
         },
-        detail: swaggerDetails('Get Coupon by Code', 'Retrieve specific Coupon by it\'s code.')
+        detail: swaggerDetails('Get My Coupon by Code', 'Retrieve specific Coupon by it\'s code.')
     })
 
     .get('/profileId/:profileId', coupons.getUsersCoupons, {
@@ -56,17 +56,17 @@ export const CouponsRouter = new Elysia({ prefix: '/coupons',
             404: t.Object({ message: t.String({ default: 'No coupons found on that User' }) }),
             500: t.Object({ message: t.String({ default: 'Could not retrieve Coupons' }) }),
         },
-        detail: swaggerDetails('Get Coupon by Code', 'Retrieve a specific Coupon by it\'s code.')
+        detail: swaggerDetails('Get User\'s Coupons by Profile ID [STAFF]', 'Retrieve a specific Coupon by it\'s code.')
     })
 
     .get('/admin/:code', coupons.getCouponByCodeAsAdmin, {
-        beforeHandle: [checkIsAdmin || checkIsStaff],
+        beforeHandle: [ checkIsStaff || checkIsAdmin ],
         response: {
             200: t.Object({ data: ViewCouponDTO, message: t.String({ default: 'Successfully retrieved Coupon' }) }),
             404: t.Object({ message: t.String({ default: 'No coupon with that code was found' }) }),
             500: t.Object({ message: t.String({ default: 'Could not retrieve your Coupons' }) }),
         },
-        detail: swaggerDetails('Get Coupon by Code', 'Retrieve a specific Coupon by it\'s code.')
+        detail: swaggerDetails('Get Coupon by Code [STAFF]', 'Retrieve a specific Coupon by it\'s code.')
     })
 
 

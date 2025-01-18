@@ -1,4 +1,4 @@
-import { Elysia, error } from "elysia";
+import { Elysia } from "elysia";
 
 // Configurations
 import consts from "~config/consts";
@@ -10,14 +10,13 @@ import { rateLimit } from "elysia-rate-limit";
 import cron, { Patterns } from "@elysiajs/cron";
 import cors from "@elysiajs/cors";
 import { helmet } from "elysia-helmet";
-import cookie from "@elysiajs/cookie";
 import jwt from "@elysiajs/jwt";
 import { staticPlugin } from '@elysiajs/static';
 import { htmx } from "elysia-htmx";
 
 // Middleware
 import { bootLogger, gracefulShutdown, requestLogger } from "~utils/systemLogger";
-import { ErrorMessages } from "~middleware/errorMessages";
+import { errorMessages } from "~middleware/errorMessages";
 import { checkMaintenanceMode } from "~middleware/lifecycleHandlers";
 import customResponse from "~middleware/customResponse";
 import { sessionDerive } from "~middleware/session.derive";
@@ -28,17 +27,22 @@ import { registerControllers } from "./server";
 import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
 import { FilesController } from "~modules/files";
-import { AuthService } from "./_modules";
-
-
-const authService = AuthService.getInstance();
-const files = new FilesController();
+import { AuthService, MessageService } from "./_modules";
+import { DatabaseError } from "./_exceptions/custom_errors";
+import { redisMessagingService } from "~config/redis";
+import { Message } from "@prisma/client";
 
 
 try {
   console.log("Initializing Elysia...");
+
+  const authService = AuthService.getInstance();
+  const files = new FilesController();
+  const messageService = MessageService.getInstance();
+
   if (import.meta.main) {
     const PORT = Bun.env.PORT || 3000;
+
     const app = new Elysia({
       name: consts.server.name,
       prefix: `/v${consts.api.version}`,
@@ -46,6 +50,11 @@ try {
       detail: { description: `${consts.server.name} Server API` }
     })
 
+        
+    // Error Handling. Loads early up the vine
+    .onError(errorMessages)
+
+    
     // State
     .state('maintenanceMode', Bun.env.MAINTENANCE_MODE === 'true' || false)
     .state('timezone', String(Bun.env.TZ || 'Europe/London'))
@@ -53,33 +62,35 @@ try {
 
     /* Extensions */
 
-    
     // Fancy logs
-    .use(Logestic.preset('fancy'))
+    .use(Logestic.preset("common"))
 
-    // Log errors
-    // .use(logger({ 
-    //   level: 'error',
-    //   // file: "./my.log", // fileLogger
-    // }))
 
     // Swagger
-    .use(swagger({ autoDarkMode: true, documentation: {
-      info: {
-          title: `${consts.server.name}`,
-          version: `${consts.server.version}`,
-          description: `Server API for ${consts.server.name}`
-      }},
+    .use(swagger({ autoDarkMode: true,
+      documentation: {
+        info: {
+            title: `${consts.server.name}`,
+            version: `${consts.server.version}`,
+            description: `Server API for ${consts.server.name}`,
+            contact: {
+              name: consts.server.author,
+              email: consts.server.email
+            }
+        }
+      },
+      swaggerOptions: {
+        syntaxHighlight: { theme: "monokai" }
+      }
     }))
 
     // CORS security
     .use(cors({
-      // origin: ['http://localhost', 'http://localhost:5173'],
-      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH'],
+      methods: ['OPTIONS', 'GET', 'PUT', 'POST', 'PATCH', 'DELETE'],
       credentials: true,
-      origin: /localhost.*/,
-      // origin: (ctx) => ctx.headers.get('Origin'),
-      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'Authentication-Method']
+      // origin: /localhost.*/,
+      origin: ['http://localhost/*', 'http://localhost:3000/*', 'http://localhost:3000/v1/swagger'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Credentials', 'Origin', 'Host', 'os', 'ipCountry', 'X-Forwarded-For', 'X-Real-IP', 'X-Custom-Header', 'requestIP', 'X-Client-Type' ]
     }))
 
     // Helmet security (might conflict with swagger)
@@ -99,7 +110,7 @@ try {
     // JWT
     .use(
       jwt({
-          name: 'elysia_jwt',
+          name: 'jwt',
           secret: Bun.env.JWSCRT!,
           exp: `${consts.auth.jwtMaxAge}d`
       })
@@ -133,6 +144,14 @@ try {
         }).catch(e => {
           console.error("Couldn't delete sessions. ",e);
         });
+
+
+        // TODO: Delete all inactive messages older than 30 days
+        messageService.clearDeletedMessages().then((messages: any) => {
+          console.log(messages);
+          console.log(`Deleted ${messages.length} inactive messages`);
+          
+        });
       }
     }))
 
@@ -146,25 +165,39 @@ try {
     // HTMX plugin
     .use(htmx())
 
-    // Get IP of client and add to context
-    .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "requestIP", "Authentication-Method"] }))
 
-    
+
+    // Get IP of client and add to context
+    // .use(ip({ checkHeaders: ["X-Forwarded-For", "X-Real-IP", "requestIP", "Authentication-Method"] }))
+
 
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
+    
     .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
-    .onError(({ code, error, set }:any) => ErrorMessages(code, error, set)) // General Error catching system
     .mapResponse(customResponse)
     .onStop(gracefulShutdown);
 
-    console.log("Initializing Elysia... Done!");
+
 
     // ROUTES
     registerControllers(app as any);
 
-    process.on('SIGINT', app.stop);
+
+    process.on('SIGINT', () => {
+      console.log('Stopping App...');
+      // close Redis system
+      redisMessagingService.close();
+      process.exit(0);
+      // app.stop();
+    });
+    process.on('SIGSEGV', app.stop);
     process.on('SIGTERM', app.stop);
+    process.on('SIGKILL', (e) => { console.error(e); app.stop; });
+
+
+    console.log("Initializing Elysia... Done!");
+
 
     // initialize server
     app.listen(PORT, bootLogger);

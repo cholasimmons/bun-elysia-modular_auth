@@ -141,7 +141,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - cache:/data
+      - cache_data:/data
       - /path/to/local/redis.conf:/usr/local/etc/redis/redis.conf
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
@@ -183,5 +183,5 @@ volumes:
   pgdata:
   minio_data:
   pgadmin_data:
-  cache:
+  cache_data:
   redis_insight_volume_data:

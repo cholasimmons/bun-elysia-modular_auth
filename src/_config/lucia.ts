@@ -6,9 +6,10 @@ import { Role } from "@prisma/client";
 import consts from "./consts";
 
 
+
 export const lucia = new Lucia(adapter, {
     sessionCookie: {
-        name: 'lucia_auth_cookie',
+        name:  'auth_cookie', // consts.auth.name,
         expires: true, // session cookies have very long lifespan (2 years)
         attributes: {
             secure: Bun.env.NODE_ENV === "production",
@@ -28,7 +29,7 @@ export const lucia = new Lucia(adapter, {
             activeExpires: attributes.activeExpires,
             expiresAt: attributes.expiresAt,
             deviceIdentifier: attributes.deviceIdentifier,
-            method: attributes.method
+            authType: attributes.authType
 		};
 	},
     getUserAttributes: (attributes) => {
@@ -70,7 +71,7 @@ declare module "lucia" {
         fresh: boolean;
         expiresAt: Date;
         deviceIdentifier: string;
-        method: string;
+        authType: string;
 	}
 
     interface DatabaseUserAttributes {

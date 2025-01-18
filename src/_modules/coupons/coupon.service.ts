@@ -3,9 +3,18 @@ import { Coupon } from "@prisma/client";
 import { ICreateCoupon } from "./coupon.model";
 
 export class CouponService {
+    private static instance: CouponService;
 
     default(){
         return 'Coupon Service';
+    }
+
+    public static getInstance(): CouponService {
+        if (!CouponService.instance) {
+            CouponService.instance = new CouponService();
+        }
+        
+        return CouponService.instance;
     }
 
     // Create a new coupon

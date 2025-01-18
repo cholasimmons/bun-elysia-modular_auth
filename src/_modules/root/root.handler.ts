@@ -9,7 +9,7 @@ const root = new RootController();
 export const RootHandler = new Elysia({ detail: { description:'Root endpoints', tags: ['Home']} })
 
     .get('/', root.helloWorld, {
-        detail: swaggerDetails('Hello World'),
+        detail: swaggerDetails('Hello World')
     }) // main route
 
     .get('/hello', root.helloTime, {

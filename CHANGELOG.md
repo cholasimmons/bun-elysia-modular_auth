@@ -1,7 +1,57 @@
 # Changelog
 
 
-## [0.4.2] - 14-12-2024
+## [0.4.4] - 18-01-2025
+
+### Added
+
+- BullMQ fast and robust queue system
+
+### Fixed
+
+- 
+
+### Changed
+
+- `_events` folder is now `_subscriptions`, and houses the BullMQ Queue system and Redis Event system
+- Event system (Redis Pub/Sub) now triggers BullMQ job queues
+
+### Removed
+
+- `sanitizeUserObject()` from AuthService replaced by function of same name in UsersService, that returns a User object WITHOUT password
+
+### Updated
+
+- Bun 1.1.43
+- Elysia, 1.2.10
+- Prisma 6.2.1
+
+
+
+## [0.4.3] - 31-12-2024
+
+### Added
+
+- Rate limiter and message duplicate check to message sending service
+- Subscription changing service function
+
+### Fixed
+
+- 
+
+### Changed
+
+- MessageService is now a singleton service, so is Wallets and Coupons services
+- 
+
+### Updated
+
+- Elysia, 1.2.8 (big deal "minor update", reduces system memory usage by over half)
+- Swagger, 1.2.0 Still seems to have a bug preventing the UI from loading (1.0.5 remains the goto version)
+
+
+
+## [0.4.2] - 25-12-2024
 
 ### Added
 
@@ -9,14 +59,21 @@
 - Wallet module can be expanded to communicate with third-party wallet systems, currently this is only a "ledger"
 - Coupons module allows discounts to be issued
 - Messaging module sends messages/notifications to a User from the System or another User
+- Refined Error handling with custom handlers in `_exceptions` folder
+- Event listeners via Redis Message Queuing
 
 ### Fixed
 
 - auth middleware returns `error()` object instead of a custom object, this allows the router responses to not throw errors anymore
+- Elysia 1.1.27 fixes the `.onError()` hook to now properly handle global errors
+
+### Changed
+
+- `Authentication-Method` header changed to `X-Client-Type`
 
 ### Updated
 
-- Elysia, 1.1.26
+- Elysia, 1.1.27
 
 
 ## [0.4.1] - 14-08-2024
