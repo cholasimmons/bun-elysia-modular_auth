@@ -1,15 +1,28 @@
 import { HttpStatusEnum } from "elysia-http-status-code/status";
-import { CustomError } from "src/_modules/root/app.models";
+import { CustomError } from "~modules/root/app.models";
 
   
   function handleRouteNotFoundError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-    return { message: 'Route not found 😔', code: set.status };
+    set.status = error.status ?? HttpStatusEnum.HTTP_404_NOT_FOUND;
+
+    return {
+      code: set.status,
+      message: 'That route does not exist 😔',
+      error: error.cause ?? error.message
+    };
   }
   
   function handleNotFoundError(error: CustomError, set: any) {
     set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
     return { code: error.status ?? set.status, message: error.message ?? 'Resource not found', note: error.cause ?? 'Resource not found' };
+  }
+  
+  function handleInvalidBucketError(error: CustomError, set: any) {
+    set.status = error.status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return {
+      code: set.status,
+      message: 'Server could not access media storage',
+      error: error.cause ?? error.message ?? 'Bucket error' };
   }
   
   function handleInternalServerError(error: CustomError, set: any) {
@@ -19,25 +32,28 @@ import { CustomError } from "src/_modules/root/app.models";
   function handleError(error: CustomError, set: any) {
     console.error(error);
     
-    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { message: 'Internal Server Error ⚠️', code: error.status ?? set.status, error: error.cause ?? error.name };
+    set.status = error.status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return {
+      code: set.status,
+      message: 'Internal Server Error ⚠️',
+      error: error.cause ?? error.message ?? error.name };
   }
   
-  function handleValidation(error: CustomError, set: any) {
+  function handleValidationError(error: CustomError, set: any) {
     
-    set.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
+    set.status = error.status = HttpStatusEnum.HTTP_406_NOT_ACCEPTABLE;
     if (error?.validator?.schema?.properties
     ) {
       return {
         code: set.status,
-        message: error.validator.schema.properties.message.default ?? error.validator.schema.properties.message.error ?? 'Schema Validation Error 🚫',
-        error: 'Schema Validation Error'
+        message: error.validator.schema.properties?.error ?? 'Schema Validation Error 🚫',
+        error: error.cause ?? error.validator.schema ?? 'Schema Validation does not tally'
       };
     } else {
       return {
         code: set.status,
         message: error.message ?? error.name,
-        error: 'Data Validation Error 🙈'
+        error: error.cause ?? 'Data Validation Error 🙈'
       };
     }
   }
@@ -128,16 +144,22 @@ import { CustomError } from "src/_modules/root/app.models";
         return handleDatabaseError(error, set);
       case 'InternalServerError':
         return handleInternalServerError(error, set);
-      case 'Error':
-        return handleError(error, set);
-      case 'VALIDATION':
-        return handleValidation(error, set);
+      // case 'Error':
+      //   return handleError(error, set);
+      // case 'VALIDATION':
+      //   return handleValidationError(error, set);
       case 'NotFoundError':
         return handleNotFoundError(error, set);
       case 'ConflictError':
         return handleConflictError(error, set);
+      case 'ValidationError':
+        return handleValidationError(error, set);
+      case 'InvalidBucketNameError':
+        return handleInvalidBucketError(error, set);
       case 'S3Error':
-        return { message: error.message };
+        return { message: "S3 Error detected: " + error.message };
+      case 'Error':
+        return { message: 'Unknown error detected.'+ error?.type ? error.type : error }
     }
 
     switch (code) {
@@ -152,15 +174,13 @@ import { CustomError } from "src/_modules/root/app.models";
       case 'AccessDenied':
         return handleNoAccessError(error, set);
       case 'VALIDATION':
-        return handleValidation(error, set);
+        return handleValidationError(error, set);
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
       case 'NoSuchBucket':
         return { message: "Unable to store S3 buffer 😒" }
       case 'NOT_FOUND':
-        console.log("an error ", code);
-        
-        // return handleNotFoundError(error, set);
+        return handleRouteNotFoundError(error, set);
       default:
         return { code: set.status, message: 'An unhandled error occurred', note: error.message };
     }

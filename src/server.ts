@@ -15,8 +15,8 @@ import { initializeEventListeners } from "./_subscriptions/events";
 export function registerControllers(app:Elysia){
   console.debug("Loading Handlers...");
 
-  // Initialize Event listeners (Redis)
-  initializeEventListeners();
+  // Initialize Event listeners (Redis Pub/Sub) (Disabled)
+  // initializeEventListeners();
   
   // root
   app.use(RootHandler);

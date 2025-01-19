@@ -2,7 +2,7 @@ const consts = {
     server: {
         name: 'Hello World',
         author: 'Just.Chola',
-        version: '0.4.2',
+        version: '0.4.4',
         email: 'info@simmons.studio'
     },
     api: {
@@ -15,6 +15,7 @@ const consts = {
         jwtMaxAge: 7, // days
         maxSessions: 3,
         passwordMinLength: 8,
+        method: 'X-Client-Type'
     },
     phone:{
         countryCode: 26,

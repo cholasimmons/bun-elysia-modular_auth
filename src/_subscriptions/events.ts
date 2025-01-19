@@ -1,5 +1,5 @@
 import { Coupon, Message, Profile, User, WalletTransaction } from "@prisma/client";
-import { emailQueue } from "src/_subscriptions/queues";
+import { emailQueue } from "~subscriptions/queues";
 import { redisMessagingService } from "~config/redis";
 
 // System events for testing

@@ -8,10 +8,10 @@ model FileUpload {
   name            String        @map("file_name")
   type            String?       @map("mime_type")
   size            Int           @map("file_size")
-  // metadata        String?
+  metadata        Json?
   bucket          String
   path            String        @map("file_path")
-  userProfileId   String        @map("user_profile_id")
+  uploaderUserId  String        @map("uploader_user_id")
   status          FileStatus    @default(UPLOAD_FAILED)
   isPublic        Boolean       @default(false)
   comment         String?
@@ -20,7 +20,7 @@ model FileUpload {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt() @map("updated_at")
   
-  @@index([name, bucket, userProfileId, createdAt(sort: Asc)])
+  @@index([name, bucket, uploaderUserId, createdAt(sort: Asc)])
   @@map("file_uploads")
   @@schema("files")
 }

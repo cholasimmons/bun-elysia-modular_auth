@@ -1,74 +1,81 @@
 import sharp, { AvailableFormatInfo, FormatEnum } from "sharp";
 import { minioClient } from "~config/minioClient";
 import { getFile, getFiles, storeBuffer } from "~modules/files/minio.controller";
-import { BucketType } from "./files.model";
+import { BucketType, UploadMode } from "./files.model";
 import mime from "mime";
 import { BunFile } from "bun";
 import { dateToFilename } from "~utils/utilities";
 import consts from "~config/consts";
+import { BadRequestError, NotFoundError, ThirdPartyServiceError } from "~exceptions/custom_errors";
+import { db } from "~config/prisma";
+import { FileStatus } from "@prisma/client";
+import { fileQueue, queueOptions } from "~subscriptions/queues";
 
-const USER_PHOTOS: string = Bun.env.BUCKET_USERPHOTOS || 'users';
-const PRODUCT_PHOTOS: string = Bun.env.BUCKET_PRODUCTPHOTOS || 'products';
+// const USER_PHOTOS: string = Bun.env.BUCKET_USERPHOTOS || 'users';
+// const PRODUCT_PHOTOS: string = Bun.env.BUCKET_PRODUCTPHOTOS || 'products';
+const BUCKET_PHOTOS: string = Bun.env.BUCKET_PHOTOS || 'hello_photos';
+const BUCKET_FILES: string = Bun.env.BUCKET_FILES || 'hello_files';
 const WATERMARK_SQUARE: BunFile = Bun.file('./public/images/logos/elysia_icon.webp');
 
 const imageFormat: keyof FormatEnum | AvailableFormatInfo = 'webp';
-const imageMainQuality: number = Number(Bun.env.IMAGE_QUALITY);
-const imageThumbQuality: number = Number(Bun.env.THUMBNAIL_QUALITY);
+const imageMainQuality: number = Number(Bun.env.IMAGE_QUALITY) ?? 75;
+const imageThumbQuality: number = Number(Bun.env.THUMBNAIL_QUALITY) ?? 40;
 export class FilesService {
 
-    fetchBucketName(bucket: BucketType): string{
-        switch (bucket) {
-            case BucketType.USER:
-                return USER_PHOTOS.toLowerCase();
-            case BucketType.PRODUCT:
-                return PRODUCT_PHOTOS.toLowerCase()
-        }
-    }
+    // fetchBucketName(bucket: BucketType): string{
+    //     switch (bucket) {
+    //         case BucketType.USER:
+    //             return USER_PHOTOS.toLowerCase();
+    //         case BucketType.PRODUCT:
+    //             return PRODUCT_PHOTOS.toLowerCase();
+    //         case BucketType.STORAGE:
+    //             return STORAGE_FILES.toLowerCase();
+    //     }
+    // }
 
     // Check if selected bucket exists
     pingBucket = async(bucket: BucketType): Promise<boolean> => {
         try {
             // console.log(`checking bucket ${this.fetchBucketName(bucket)}...`);
-            let bucketExists = await minioClient.bucketExists(this.fetchBucketName(bucket));
+            let bucketExists = await minioClient.bucketExists(bucket);
 
             if(bucketExists){
                 return true;
             } else {
                 return false;
+                // throw new ThirdPartyServiceError("Storage directory not found");
             }
         } catch (error) {
-            return false;
+            throw error;;
         }
     }
 
     // Check if selected bucket exists, if not then create it
     pingBucketAndCreate = async(bucket: BucketType): Promise<boolean> => {
-        const bucketName = this.fetchBucketName(bucket);
         try {
-            // console.log(`checking bucket ${this.fetchBucketName(bucket)}...`);
-            let bucketExists = await minioClient.bucketExists(bucketName);
-
+            const bucketName = bucket.toString();
+            
+            const bucketExists:boolean = await minioClient.bucketExists(bucketName);
+            
             // If bucket doesn't exist, create it
             if(!bucketExists){
-                await minioClient.makeBucket(bucketName);
+                await minioClient.makeBucket(bucketName, Bun.env.MINIO_REGION);
             } else {
                 return true;
             }
 
-            // bucketExists = await minioClient.bucketExists(this.fetchBucketName(bucket));
-            
             return bucketExists;
         } catch (error) {
-            return false;
+            throw error;
         }
     }
 
 
     // GENERIC: files
 
-    listAllImages = async(bucket: BucketType) => {
+    listAllFiles = async(bucket: BucketType) => {
         try {
-            const allFiles:any = await getFiles(this.fetchBucketName(bucket));
+            const allFiles:any = await getFiles(bucket);
 
             // for (let index = 0; index < 2; index++) {
             //     const element = res[index];
@@ -85,7 +92,7 @@ export class FilesService {
 
     getFileByName = async(filename: string, bucket: BucketType) => {
         try {
-            const res = await getFile(filename, this.fetchBucketName(bucket));
+            const res = await getFile(filename, bucket);
 
             if(!res) throw `${filename} not found`;
             
@@ -96,9 +103,27 @@ export class FilesService {
         }
     }
 
+    getFilesByUserId = async(userId: string) => {
+        const BUCKET = BucketType.FILES;
+        try {
+            // const res = await getFile(filename, BucketType.FILES);
+            const dbFiles = await db.fileUpload.findMany({
+                where: { uploaderUserId: userId, status: FileStatus.UPLOADED }
+            });
+
+            if(!dbFiles) throw new NotFoundError('Files not found');
+            
+            return dbFiles;
+        } catch (error) {
+            console.error(error);
+
+            throw error;
+        }
+    }
+
     uploadFile = async (file: File, fileName: string, bucket: BucketType, userProfileId: string) => {
         const createdDate = new Date();
-        const bucketName = this.fetchBucketName(bucket);
+        const bucketName = bucket;
 
         try {
             // Get the file extension from the MIME type
@@ -124,7 +149,7 @@ export class FilesService {
 
     uploadFiles = async (files: File[], fileName: string, bucket: BucketType, userProfileId: string) => {
         const createdDate = new Date();
-        const bucketName = this.fetchBucketName(bucket);
+        const bucketName = bucket;
 
         try {
             // Process and upload each image
@@ -158,8 +183,10 @@ export class FilesService {
     // GENERIC: images
 
 
-    uploadPhoto = async (file: File, bucket: BucketType, userProfileId: string, fileName?: string, hasWatermark?: boolean, hasBlur?: boolean) => {
-        const bucketName:string = this.fetchBucketName(bucket);
+    uploadPhoto = async (file: File, bucket: BucketType, userId: string, fileName?: string, hasWatermark?: boolean, hasBlur?: boolean) => {
+
+        const bucketName:string = bucket; //this.fetchBucketName(bucket);
+
         // Get the file extension from the MIME type
         const fileExtension = imageFormat as string // mime.getExtension(file.type) || '';
         const createdDate = new Date();
@@ -178,11 +205,11 @@ export class FilesService {
             //     uniqueFileName = `${generatedName}_${createdDate.getTime()}${fileExtension ? '.'+fileExtension : ''}`;
             // }
 
-            const metadata = { name: file.name, size: file.size, type: file.type, 'X-Amz-Meta-UserProfileId': userProfileId, 'X-Amz-Meta-CreatedDate': createdDate.toISOString() };
+            const metadata = { name: file.name, size: file.size, type: file.type, 'X-Amz-Meta-UserId': userId, 'X-Amz-Meta-CreatedDate': createdDate.toISOString() };
 
             // If file type isn't of an image, return
             if(!file.type.startsWith("image")){
-                throw 'File is not an image';
+                throw new BadRequestError('File is not an image');
             }
 
             // Load the watermark SVG
@@ -218,11 +245,12 @@ export class FilesService {
                 .toBuffer();
             // Upload images to MinIO
             await Promise.all([
-                storeBuffer(finalBuffer, bucketName, { ...metadata, name: 'main_'+uniqueFileName}),
-                (hasBlur) ? storeBuffer(blurBuffer, bucketName, { ...metadata, name: 'blur_'+uniqueFileName }) : null ,
-                storeBuffer(thumbImage, bucketName, { ...metadata, name: 'thumb_'+uniqueFileName }),
+                storeBuffer(finalBuffer, bucketName, { ...metadata, name: 'main_'+uniqueFileName, 'X-Amz-Meta-Mode': UploadMode.MAIN}),
+                (hasBlur) ? storeBuffer(blurBuffer, bucketName, { ...metadata, name: 'blur_'+uniqueFileName, 'X-Amz-Meta-Mode': UploadMode.BLUR }) : null ,
+                storeBuffer(thumbImage, bucketName, { ...metadata, name: 'thumb_'+uniqueFileName, 'X-Amz-Meta-Mode': UploadMode.THUMB }),
             ])
-            
+
+            await fileQueue.add('file:photo:upload', file, queueOptions(2, 3, 2));
 
             return { ...metadata, name: uniqueFileName};
         } catch (error:any) {
@@ -234,7 +262,7 @@ export class FilesService {
 
     uploadPhotos = async (files: File[], bucket: BucketType, userProfileId: string, fileName?: string, hasWatermark?: boolean, hasBlur?:boolean) => {
         const createdDate = new Date();
-        const bucketName = this.fetchBucketName(bucket);
+        const bucketName = bucket; // this.fetchBucketName(bucket);
         const generatedName = fileName ? fileName?.toWellFormed() : dateToFilename(createdDate);
 
         try {

@@ -1,10 +1,11 @@
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { FilesService } from ".";
 import mime from "mime";
-import { BucketType, IImageUpload } from "./files.model";
+import { BucketType, IFileUpload, IImageUpload } from "./files.model";
 import { db, prismaSearch } from "~config/prisma";
 import { minioClient } from "~config/minioClient";
 import { FileStatus } from "@prisma/client";
+import { Context } from "elysia";
 
 export class FilesController {
     private filesService: FilesService;
@@ -14,22 +15,39 @@ export class FilesController {
     }
 
     getByFilename = async({ set, params: { filename } }: any) => {
+        const BUCKET = BucketType.FILES;
 
         try {
-            console.log('Fetching: ',filename);
+            console.log(`Fetching ${BUCKET}: ${filename}`);
             
-            const file: Blob = await this.filesService.getFileByName(filename, BucketType.PRODUCT);
+            const file: Blob = await this.filesService.getFileByName(filename, BUCKET);
 
 
-            set.headers['Content-Type'] = 'image/*';
-            return { data: file, message: `${filename} loaded` }
+            set.headers['Content-Type'] = 'file/*';
+            return { data: file, message: 'File loaded' }
             // return file
         } catch (error) {
             console.error(error);
-            set.status = HttpStatusEnum.HTTP_404_NOT_FOUND
-            return { message: 'Could not load file' }
+
+            throw error;
         }
-        
+    }
+    getByPhotoname = async({ set, params: { filename } }: any) => {
+        const BUCKET = BucketType.PHOTOS;
+
+        try {
+            console.log(`Fetching ${BUCKET}: ${filename}`);
+            
+            const file: Blob = await this.filesService.getFileByName(filename, BUCKET);
+
+
+            set.headers['Content-Type'] = 'image/*';
+            return { data: file, message: 'Image loaded' }
+        } catch (error) {
+            console.error(error);
+
+            throw error;
+        }
     }
 
     getFilesByUserId = async({ set, user, params, query }: any) => {
@@ -37,25 +55,104 @@ export class FilesController {
         const user_id = params?.userId ?? user.id ?? null;
         try {
             // await prismaSearch();
-            const file: Blob = await this.filesService.listAllImages(BucketType.PRODUCT);
+            const files = await this.filesService.getFilesByUserId(user_id);
 
             // set.headers['Content-Type'] = 'image/*';
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: file, message: 'User\'s files loaded' }
+            return { data: files, message: `${files.length} User\'s files loaded` }
             // return file
         } catch (error) {
             console.error(error);
-            set.status = HttpStatusEnum.HTTP_404_NOT_FOUND
-            return { message: 'Could not load file' }
+
+            throw error;
         }
         
     }
 
-    addSinglePhoto = async({ set, user, body: { file, objectId } }: any) => {
+    /** Upload a single file, not image */
+    addSingleFile = async({ set, user, body: { file } }: any) => {
+        const BUCKET = BucketType.FILES;
+        
+        try {
+            const upload = await db.$transaction(async (tx) =>{
+                const fsx: IFileUpload|null = await this.filesService.uploadFile(file, BUCKET, user.id, file.name);
+
+                if(!fsx){
+                    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+                    return { message: 'Unable to upload file'};
+                }
+
+                await tx.fileUpload.create({
+                    data:{
+                        origname: file.name,
+                        name: fsx?.name,
+                        type: fsx.type,
+                        size: fsx.size,
+                        bucket: BUCKET,
+                        path: `/${BUCKET.toLowerCase()}/${fsx.name}`,
+                        isPublic: true,
+                        uploaderUserId: user.id,
+                        status: FileStatus.UPLOADED
+                    }
+                })
+            })
+           
+
+            set.status = HttpStatusEnum.HTTP_201_CREATED;
+            return { data: upload, message: 'File uploaded to '+BUCKET }
+        } catch (error:any) {
+            console.error("Upload failed: ", error);
+
+            throw error;
+        }
+    }
+
+    /** Upload multiple files, not images */
+    addMultipleFiles = async({ set, user, body: { files, objectId } }: any) => {
+        const BUCKET = BucketType.FILES;
         
         try {
             await db.$transaction(async (tx) =>{
-                const fsx: IImageUpload|null = await this.filesService.uploadPhoto(file, BucketType.PRODUCT, user.profileId, objectId);
+                const fsx: IFileUpload[]|null = await this.filesService.uploadFiles(files, BUCKET, user.profileId, objectId);
+
+                if(!fsx){
+                    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+                    return { message: 'Unable to upload files'};
+                }
+
+                fsx.forEach( async(f:any, i) => {
+                    await tx.fileUpload.create({
+                        data:{
+                            origname: fsx[i].name,
+                            name: f.name,
+                            type: f.type,
+                            size: f.size,
+                            bucket: BUCKET,
+                            path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                            uploaderUserId: user.id,
+                            status: FileStatus.UPLOADED
+                        }
+                    })
+                })
+            })
+           
+
+            set.status = HttpStatusEnum.HTTP_201_CREATED;
+            return { data: null, message: 'Files uploaded to '+BUCKET }
+        } catch (error:any) {
+            console.error("Upload failed: ", error);
+
+            throw error;
+        }
+    }
+
+    /** Upload a single image, not any other type */
+    addSinglePhoto = async({ set, user, body: { file } }: any) => {
+        const BUCKET = BucketType.PHOTOS;
+
+        try {
+            const upload = await db.$transaction(async (tx) =>{
+                const fsx: IImageUpload|null = await this.filesService.uploadPhoto(file, BUCKET, user.id, file.name);
 
                 if(!fsx){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
@@ -68,9 +165,10 @@ export class FilesController {
                         name: fsx?.name,
                         type: fsx.type,
                         size: fsx.size,
-                        bucket: BucketType.PRODUCT,
-                        path: `/${BucketType.PRODUCT.toLowerCase()}/${fsx.name}`,
-                        userProfileId: user.profileId,
+                        bucket: BUCKET,
+                        path: `/${BUCKET.toLowerCase()}/${fsx.name}`,
+                        isPublic: true,
+                        uploaderUserId: user.id,
                         status: FileStatus.UPLOADED
                     }
                 })
@@ -78,24 +176,25 @@ export class FilesController {
            
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: null, message: 'Files uploaded to '+BucketType.PRODUCT }
+            return { data: upload, message: 'Photo uploaded to '+BUCKET }
         } catch (error:any) {
-            console.error("Upload failed: ", error);
-
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: "Could not upload file" };
+            throw error;
+            // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
+            // return { message: "Could not upload file" };
         }
     }
 
+    /** Upload multiple image files */
     addMultiplePhotos = async({ set, user, body: { files, objectId } }: any) => {
+        const BUCKET = BucketType.PHOTOS;
         
         try {
             await db.$transaction(async (tx) =>{
-                const fsx: IImageUpload[]|null = await this.filesService.uploadPhotos(files, BucketType.PRODUCT, user.profileId, objectId);
+                const fsx: IImageUpload[]|null = await this.filesService.uploadPhotos(files, BUCKET, user.profileId, objectId);
 
                 if(!fsx){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-                    return { message: 'Unable to upload image'};
+                    return { message: 'Unable to upload images'};
                 }
 
                 fsx.forEach( async(f:any, i) => {
@@ -105,9 +204,9 @@ export class FilesController {
                             name: f.name,
                             type: f.type,
                             size: f.size,
-                            bucket: BucketType.PRODUCT,
-                            path: `/${BucketType.PRODUCT.toLowerCase()}/${f.name}`,
-                            userProfileId: user.profileId,
+                            bucket: BUCKET,
+                            path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                            uploaderUserId: user.id,
                             status: FileStatus.UPLOADED
                         }
                     })
@@ -116,21 +215,21 @@ export class FilesController {
            
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: null, message: 'Files uploaded to '+BucketType.PRODUCT }
+            return { data: null, message: 'Images uploaded to '+BUCKET }
         } catch (error:any) {
             console.error("Upload failed: ", error);
 
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: "Could not upload file" };
+            throw error;
         }
     }
 
     addUserPhoto = async({ set, user, body: { file } }: any) => {
+        const BUCKET = BucketType.USERS;
         let f: IImageUpload|null;
 
         try {
             await db.$transaction(async (tx) =>{
-                f = await this.filesService.uploadPhoto(file, file.name, BucketType.USER, user.profileId);
+                f = await this.filesService.uploadPhoto(file, file.name, BUCKET, user.id);
 
                 if(!f){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
@@ -143,47 +242,49 @@ export class FilesController {
                         name: f.name,
                         type: f.type,
                         size: f.size,
-                        bucket: BucketType.USER,
-                        path: `/${BucketType.USER.toLowerCase()}/${f.name}`,
-                        userProfileId: user.profileId,
+                        bucket: BUCKET,
+                        path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                        uploaderUserId: user.id,
                         status: FileStatus.UPLOADED
                     }
                 })
             })
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: file.name, message: 'Photo uploaded to '+BucketType.USER }
+            return { data: file.name, message: 'User Photo uploaded to '+BUCKET }
         } catch (error:any) {
             console.error("Upload failed: ", error);
 
-            if(f!){
-                await db.fileUpload.create({
-                    data: {
-                        origname: file.name,
-                        name: f.name,
-                        type: f.type,
-                        size: f.size,
-                        bucket: BucketType.USER,
-                        path: `/${BucketType.USER.toLowerCase()}/${f.name}`,
-                        userProfileId: user.profileId,
-                        status: FileStatus.UPLOAD_FAILED,
-                        comment: error.message
-                    }
-                });
-            }
-
-            set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
-            return { message: "Could not upload photo" };
+            throw error;
         }
     }
 
 
-    getAll = async() => {
+    getAllFiles = async ({ set }:any) => {
+        const BUCKET = BucketType.FILES
         console.log('[File Controller]...');
         
-        const l = await this.filesService.listAllImages(BucketType.PRODUCT);
+        try {
+            const files = await this.filesService.listAllFiles(BUCKET);
         
-        return { data: l, message: 'Loaded all files'};
+            set.status = 200;
+            return { data: files, message: 'Loaded all files'};
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    getAllPhotos = async ({ set }:any) => {
+        const BUCKET = BucketType.PHOTOS;
+        
+        try {
+            const images = await this.filesService.listAllFiles(BUCKET);
+        
+            set.status = 200;
+            return { data: images, message: 'Loaded all photos'};
+        } catch (error) {
+            throw error;
+        }
     }
 
     /** CRON function
@@ -194,16 +295,30 @@ export class FilesController {
   
         for (const file of dbFiles) {
             try {
-            await minioClient.statObject(this.filesService.fetchBucketName(BucketType.PRODUCT), file.name);
+                await minioClient.statObject(BucketType.FILES, file.name);
             } catch (error:any) {
-            if (error.code === 'NotFound') {
-                // File exists in DB but not in MinIO
-                await db.fileUpload.update({
-                where: { id: file.id },
-                data: { status: FileStatus.MISSING_IN_STORAGE }
-                });
+                if (error.code === 'NotFound') {
+                    // File exists in DB but not in MinIO
+                    await db.fileUpload.update({
+                    where: { id: file.id },
+                    data: { status: FileStatus.MISSING_IN_STORAGE }
+                    });
+                }
             }
-            }
+        }
+    }
+
+
+    checkAndMakeBucket = async({ query, set }:Context) => {
+        const bucket = query.bucket;
+
+        try {
+            const bucketExisted: boolean = await this.filesService.pingBucketAndCreate(bucket as BucketType);
+
+            set.status = bucketExisted ? 200 : HttpStatusEnum.HTTP_201_CREATED;
+            return { message: bucketExisted ? `Bucket \'${bucket}\' already exists` : `Bucket \'${bucket}\' created` }
+        } catch (error) {
+            throw error;
         }
     }
 }

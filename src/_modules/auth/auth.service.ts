@@ -125,7 +125,7 @@ class AuthService {
                 const sameDeviceSession = await db.session.findFirst({
                     where: {
                         userId: user.id,
-                        deviceIdentifier: deviceIdentifier,
+                        deviceIdentifier: deviceIdentifier ?? null,
                     }
                 });
     

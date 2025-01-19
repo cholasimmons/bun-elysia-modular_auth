@@ -16,7 +16,7 @@ import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
 import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
 import { PrismaUserWithProfile, SafeUser } from "~modules/users/users.model";
-import { emailQueue } from "src/_subscriptions/queues";
+import { emailQueue, queueOptions } from "src/_subscriptions/queues";
 
 export class AuthController {
     // private authService: AuthService;
@@ -102,11 +102,12 @@ export class AuthController {
                 sessions: sessions.length
             }
 
-            // Publish that a User successfully logged in
-            redisMessagingService.publish('user', {
-                action: "user:login",
-                user: safeUser
-            });
+            // Publish event that a User successfully logged in (disabled)
+            // redisMessagingService.publish('user', {
+            //     action: "user:login",
+            //     user: safeUser
+            // });
+            
 
             // RAW redis function
             await redisSet(`user:${userExists.id}`, safeUser, 5);
@@ -118,8 +119,11 @@ export class AuthController {
                 set.headers["Set-Cookie"] = tokenOrCookie.serialize();
             }
 
+            // BullMQ event queue
+            emailQueue.add('user:login', safeUser, queueOptions());
+
             set.status = HttpStatusEnum.HTTP_200_OK;
-            return { data: sanitizedUser, message: 'Successfully logged in', note: { sessions: sessions.length} };
+            return { data: authMethod === 'Cookie' ? sanitizedUser : authMethod === 'JWT' ? {token: tokenOrCookie, user: sanitizedUser} : null, message: 'Successfully logged in' };
         } catch (e:any) {
             console.error(e);
             
@@ -189,16 +193,17 @@ export class AuthController {
 
             console.log("Created User ", newUser.firstname, autoUser ? '. Auto enrolled user: '+autoUser : 'No auto-enrol');
 
-            if(Bun.env.NODE_ENV === 'production'){
-                const verificationCode = await this.authService.generateEmailVerificationCode(newUser.id, email);
-	            this.authService.sendEmailVerificationCode(email, verificationCode)
-                    .then(() => {
-                        console.debug(`Verification code sent to ${email}`);
-                    })
-                    .catch((e) => {
-                        console.debug(`Unable to send verification code to ${email} ${e}`);
-                    });
-            }
+            // Moved to Event queue
+            // if(Bun.env.NODE_ENV === 'production'){
+            //     const verificationCode = await this.authService.generateEmailVerificationCode(newUser.id, email);
+	        //     this.authService.sendEmailVerificationCode(email, verificationCode)
+            //         .then(() => {
+            //             console.debug(`Verification code sent to ${email}`);
+            //         })
+            //         .catch((e) => {
+            //             console.debug(`Unable to send verification code to ${email} ${e}`);
+            //         });
+            // }
 
             if(autoUser?.supportLevel && autoUser?.supportLevel < 1){
                 await db.autoEnrol.update({ where: { email: autoUser?.email}, data: { isActive: false, isComment: `Used for User Registration at ${new Date()}` } });
@@ -209,11 +214,14 @@ export class AuthController {
 
             const safeUser: SafeUser = this.userService.sanitizeUserObject(newUser);
 
-            redisMessagingService.publish('user', {
-                action: "user:register",
-                user: safeUser
-            });
+            // Redis Pub/Sub (Disabled)
+            // redisMessagingService.publish('user', {
+            //     action: "user:register",
+            //     user: safeUser
+            // });
 
+            // BullMQ event queue
+            emailQueue.add('user:create', safeUser, queueOptions(5, 10, 1));
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return {
@@ -245,7 +253,7 @@ export class AuthController {
         }
     }
 
-    logout = async ({ set, request:{headers}, session, cookie, jwt, authMethod }: any) => {
+    logout = async ({ set, request:{headers}, session, user, cookie, jwt, authMethod }: any) => {
 
         try {
             // Determine the authentication method
@@ -286,6 +294,9 @@ export class AuthController {
                 set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
                 return { message: 'No session or token present' };
             }
+
+            // BullMQ event queue
+            emailQueue.add('user:logout', user.id);
     
             // Set the response status
             set.status = HttpStatusEnum.HTTP_200_OK;

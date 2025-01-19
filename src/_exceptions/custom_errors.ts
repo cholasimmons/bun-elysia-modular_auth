@@ -42,6 +42,20 @@ class NotFoundError extends Error {
     }
 }
 
+/** BadRequestError
+ * Request is not good
+ */
+class BadRequestError extends Error {
+    readonly _tag = "BadRequestError";
+    status: number;
+
+    constructor(public message: string = "Your requested is not valid", status: number = HttpStatusEnum.HTTP_400_BAD_REQUEST, cause?: string) {
+        super(message, { cause });
+        this.status = status;
+        this.name = this._tag;
+    }
+}
+
 /** DatabaseError
  * Database related error
  */
@@ -211,6 +225,7 @@ export {
     MessagingError,
     FinancialError,
     DatabaseError,
+    BadRequestError,
     NotFoundError,
     AuthenticationError,
     AuthorizationError,

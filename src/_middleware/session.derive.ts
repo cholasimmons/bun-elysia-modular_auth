@@ -1,6 +1,6 @@
 // src/middleware.ts
 import { verifyRequestOrigin } from "oslo/request";
-import { AuthenticationError, AuthorizationError, InternalServerError } from "src/_exceptions/custom_errors";
+import { AuthenticationError, AuthorizationError, InternalServerError, ValidationError } from "~exceptions/custom_errors";
 import { lucia } from "~config/lucia";
 
 export const sessionDerive = async ({ request:{ headers, method }, cookie, jwt, locals }:any) => {
@@ -27,7 +27,7 @@ export const sessionDerive = async ({ request:{ headers, method }, cookie, jwt, 
 
             if(!originHeader || !hostHeader){
                 console.error("CSRF Check fail. Origin and Host headers required");
-                throw new InternalServerError("CSRF Check iminent fail");
+                throw new ValidationError("CSRF Check iminent fail", 400, 'Origin and Host headers required');
             }
             
 			if (!verifyRequestOrigin(originHeader, [hostHeader])) {

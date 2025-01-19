@@ -1,11 +1,32 @@
 # Changelog
 
 
+## [0.4.5] - 22-01-2025
+
+### Added
+
+- More custom errors to handle S3 issues
+
+
+### Changed
+
+- `.env` file now has Access Key and Secret Key provision for MinIO
+- BUCKET names modified to allow for a more "multi-tenancy" setup on MinIO
+- Files module heavily modified to allow CRUD actions on S3 storage
+- Files schema now accomodates metadata JSON type, and userProfileId changed to uploaderUserId
+
+### Updated
+
+- Bun 1.1.45
+
+
+
 ## [0.4.4] - 18-01-2025
 
 ### Added
 
-- BullMQ fast and robust queue system
+- BullMQ fast and robust queue system, replacing Redis Pub/Sub
+- Global header check to ensure the correct "X-Client-Type" is applied
 
 ### Fixed
 
@@ -14,11 +35,13 @@
 ### Changed
 
 - `_events` folder is now `_subscriptions`, and houses the BullMQ Queue system and Redis Event system
-- Event system (Redis Pub/Sub) now triggers BullMQ job queues
+- Event system (Redis Pub/Sub) kept for educational purposes but no longer implemented.
+- `sanitizeUserObject()` now in UsersService - returns a full User object WITHOUT password
+
 
 ### Removed
 
-- `sanitizeUserObject()` from AuthService replaced by function of same name in UsersService, that returns a User object WITHOUT password
+- `sanitizeUserObject()` from AuthService replaced by function of same name in UsersService.
 
 ### Updated
 

@@ -451,7 +451,7 @@ export class UsersController {
                                 size: uploadedImage.size,
                                 bucket: BucketType.USER,
                                 path: `/${BucketType.USER.toLowerCase()}/${uploadedImage.name}`,
-                                userProfileId: user.profileId,
+                                userId: user.id,
                                 status: FileStatus.UPLOADED,
                                 isPublic: Boolean(true)
                             }

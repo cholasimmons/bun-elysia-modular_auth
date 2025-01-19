@@ -23,14 +23,14 @@ import { sessionDerive } from "~middleware/session.derive";
 
 // Route Handler
 import { registerControllers } from "./server";
-// import { logger } from "@bogeychan/elysia-logger";
 import { ip } from "elysia-ip";
 import { Logestic } from "logestic";
 import { FilesController } from "~modules/files";
 import { AuthService, MessageService } from "./_modules";
 import { DatabaseError } from "./_exceptions/custom_errors";
-import { redisMessagingService } from "~config/redis";
+// import { redisMessagingService } from "~config/redis";
 import { Message } from "@prisma/client";
+import { headerCheck } from "~middleware/authChecks";
 
 
 try {
@@ -174,7 +174,7 @@ try {
     // Life cycles
     .derive(sessionDerive) // Adds User and Session data to context - from token/cookie
     
-    .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
+    .onBeforeHandle([checkMaintenanceMode, headerCheck]) // Checks if server is in maintenance mode
     .mapResponse(customResponse)
     .onStop(gracefulShutdown);
 
@@ -186,8 +186,10 @@ try {
 
     process.on('SIGINT', () => {
       console.log('Stopping App...');
-      // close Redis system
-      redisMessagingService.close();
+
+      // Close Redis system (disabled)
+      //redisMessagingService.close();
+
       process.exit(0);
       // app.stop();
     });

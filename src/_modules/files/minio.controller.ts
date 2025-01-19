@@ -21,7 +21,7 @@ export const storeFile = async (file: File, bucket: string, filePath:string, met
 }
 
 /*** Returns bucket name + file name as string */
-export const storeBuffer = async (buffer: Buffer|Readable, bucket: string, meta?:{ name:string, size:number, type: string}) => {
+export const storeBuffer = async (buffer: Buffer|Readable, bucket: string, meta?:{ name:string, size:number, type: string, 'X-Amz-Meta-Mode'?:string}) => {
   try {
     const filename = meta?.name ?? randomUUID()+'.webp';
 

@@ -1,9 +1,22 @@
 import { Role } from "@prisma/client";
-import Elysia from "elysia";
-import { HttpStatusEnum } from "elysia-http-status-code/status";
-import { AuthenticationError } from "src/_exceptions/custom_errors";
+import { AuthenticationError, NotFoundError } from "~exceptions/custom_errors";
+import consts from "~config/consts";
 import { lucia } from "~config/lucia";
 import { db } from "~config/prisma";
+
+
+// Checks for correct Headers
+export const headerCheck = ({ request:{ headers }, authMethod }:any) => {
+  if (!authMethod) {
+    const method: string|null = headers.get(consts.auth.method ?? "X-Client-Type");
+
+    if(!method){
+      throw new NotFoundError("Authentication mode not specified");
+    }
+
+    throw new NotFoundError("Authentication method not specified");
+  }
+}
 
 
 // Dynamically check between admin-console and client-app
@@ -114,64 +127,3 @@ export const checkForProfile =  async ({ user, session, error }: any) => {
   }
 }
 
-
-
-
-// this checks Cookie  (Admin Console), if not supplied the request will be rejected!
-const checkCookieAuth = async ({ set, session, request:{headers}, cookie:{ lucia_auth } }: any)  => {
-  try {
-    if(!session){
-      console.warn("No session data present. Are you logged in?");
-      
-      set.status = HttpStatusEnum.HTTP_401_UNAUTHORIZED;
-      return { message: 'Unauthorized Access' };
-    }
-    
-  } catch (error) {
-    console.warn(error);
-  }
-}
-
-// this checks JWT token (Frontend client), if not supplied the request will be rejected!
-const checkJWTAuth = (app: Elysia) => 
-  app.derive(async ({ jwt, set, request:{ headers } }:any) => {
-
-    const token = headers?.get('Authorization')?.replace("Bearer ", "") ?? null;
-    if(!token){
-      set.status = 401;
-      console.debug("No JWT token");
-      return {
-        success: false,
-        message: "Unauthorized. Access token not present",
-        data: null,
-      };
-    }
-
-
-    const { id } = await jwt.verify(token);
-    if (!id) {
-      set.status = 401;
-      console.debug("No user.userId in JWT");
-      return {
-        success: false,
-        message: "Unauthorized",
-        data: null,
-      };
-    }
-
-    const user = await db.user.findUnique({
-      where: {
-        id: id,
-      },
-    });
-    if (!user) {
-      set.status = 401;
-      return {
-        success: false,
-        message: "Unauthorized. Please create an account",
-        data: null,
-      };
-    }
-
-    return { user };
-});

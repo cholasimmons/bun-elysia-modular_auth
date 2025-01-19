@@ -5,7 +5,7 @@
     "email": "cholasimmons@gmail.com",
     "github": "https://github.com/cholasimmons"
   },
-  "version": "0.4.2",
+  "version": "0.4.4",
   "trustedDependencies": [
     "@prisma/client",
     "@prisma/engines",
@@ -26,7 +26,6 @@
     "start": "NODE_ENV=production bun run src/index.ts"
   },
   "dependencies": {
-    "@bogeychan/elysia-logger": "^0.1.7",
     "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/cron": "^1.2.0",
@@ -57,7 +56,7 @@
     "sharp": "^0.33.5"
   },
   "devDependencies": {
-    "bun-types": "^1.1.43",
+    "bun-types": "^1.1.45",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2"
   },
