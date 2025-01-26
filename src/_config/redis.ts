@@ -22,6 +22,30 @@ export const redisSet = async (key: string, data: any, lifespan:number = 5): Pro
     return (await cache.setex(key, lifespan*60, JSON.stringify(data))) === 'OK';
 };
 
+/*** Returns a number after deleting data of the specified key
+ */
+ export const redisDel = async (key: string): Promise<Number> => {
+  return await cache.hdel(key);
+};
+
+/*** Search for Keys by pattern
+ */
+export const redisKeys = async (pattern: string): Promise<string[]> => {
+  return await cache.keys(pattern);
+};
+
+/*** Check if provided Key & Data exists in cache.
+ * Returns a number
+ */
+export const redisExists = async (key: string, data:string): Promise<number> => {
+  return await cache.exists(key, data);
+};
+
+/*** Returns all available data by key */
+export const redisGetAll = async <T>(key: string): Promise<Record<string, string> | null> => {
+  return await cache.hgetall(key);
+};
+
 // Auth
 
 

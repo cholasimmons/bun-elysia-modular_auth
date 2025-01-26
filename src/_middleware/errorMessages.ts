@@ -2,6 +2,16 @@ import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { CustomError } from "~modules/root/app.models";
 
   
+function handleServiceUnavailableError(error: CustomError, set: any) {
+  set.status = error.status ?? HttpStatusEnum.HTTP_423_LOCKED;
+  return {
+    success: false,
+    code: set.status,
+    message: "Server currently undergoing maintenance", // '🚧 Maintenance Mode: ON 🚧',
+    error: error.message ?? 'Maintenance Mode ON 🔐'
+  };
+}
+
   function handleRouteNotFoundError(error: CustomError, set: any) {
     set.status = error.status ?? HttpStatusEnum.HTTP_404_NOT_FOUND;
 
@@ -13,8 +23,13 @@ import { CustomError } from "~modules/root/app.models";
   }
   
   function handleNotFoundError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-    return { code: error.status ?? set.status, message: error.message ?? 'Resource not found', note: error.cause ?? 'Resource not found' };
+    set.status = error.status ?? HttpStatusEnum.HTTP_404_NOT_FOUND;
+    console.error(error.message);
+    
+    return {
+      code: set.status,
+      message: error.message ?? 'Resource not found',
+      error: error.cause ?? 'Resource not found' };
   }
   
   function handleInvalidBucketError(error: CustomError, set: any) {
@@ -86,8 +101,12 @@ import { CustomError } from "~modules/root/app.models";
   }
   
   function handleMinioConnectError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_404_NOT_FOUND;
-    return { code: error.status ?? set.status, message: 'Unable to store S3 buffer', note: error.message };
+    set.status = error.status ?? HttpStatusEnum.HTTP_404_NOT_FOUND;
+    return {
+      code: set.status,
+      message: 'Unable to store S3 data',
+      error: error.cause ?? error.message
+    };
   }
 
   function handleOAuth2Error(error: CustomError, set: any) {
@@ -95,8 +114,12 @@ import { CustomError } from "~modules/root/app.models";
     return { code: set.status , message: 'An authentication state error occured' };
   }
   function handleRequestError(error: CustomError, set: any) {
-    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: error.status ?? set.status, message: 'Database known request error', error: error.cause };
+    set.status = error.status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return {
+      code: set.status,
+      message: 'Database error.',
+      error: error.cause ?? error.message,
+    };
   }
 
   function handleConflictError(error:CustomError, set: any) {
@@ -106,12 +129,21 @@ import { CustomError } from "~modules/root/app.models";
   }
 
   function handleAuthorizationError(error: CustomError, set: any){
-    set.status = 500;
-    console.error(error);
-    
+    set.status = error.status ?? HttpStatusEnum.HTTP_401_UNAUTHORIZED;
+
     return {
       code: set.status,
-      message: error.toString()
+      message: "You are not Authorized",
+      error: error.message
+    }
+  }
+
+  function handleAuthenticationError(error: CustomError, set: any){
+    set.status = error.status ?? 500;    
+    return {
+      code: set.status,
+      message: "You cannot perform this action",
+      error: error.message
     }
   }
 
@@ -132,6 +164,8 @@ import { CustomError } from "~modules/root/app.models";
     console.error('Caught: error.name ', error.name);
 
     switch(error.name){
+      case 'ServiceUnavailableError':
+        return handleServiceUnavailableError(error, set)
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
       case 'PrismaClientValidationError':
@@ -152,12 +186,16 @@ import { CustomError } from "~modules/root/app.models";
         return handleNotFoundError(error, set);
       case 'ConflictError':
         return handleConflictError(error, set);
+      case 'AuthenticationError':
+        return handleAuthenticationError(error, set);
+      case 'AuthorizationError':
+        return handleAuthorizationError(error, set);
       case 'ValidationError':
         return handleValidationError(error, set);
       case 'InvalidBucketNameError':
         return handleInvalidBucketError(error, set);
       case 'S3Error':
-        return { message: "S3 Error detected: " + error.message };
+        return { message: error.message, error: error.cause };
       case 'Error':
         return { message: 'Unknown error detected.'+ error?.type ? error.type : error }
     }
@@ -178,7 +216,7 @@ import { CustomError } from "~modules/root/app.models";
       case 'PrismaClientInitializationError':
         return handleDatabaseInitError(error, set);
       case 'NoSuchBucket':
-        return { message: "Unable to store S3 buffer 😒" }
+        return { message: "Unable to store data. Directory not found 😒" }
       case 'NOT_FOUND':
         return handleRouteNotFoundError(error, set);
       default:

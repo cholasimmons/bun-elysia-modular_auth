@@ -10,7 +10,7 @@ export class MessageController {
     private messageSvc: MessageService;
 
     constructor(){
-        this.messageSvc = MessageService.getInstance();
+        this.messageSvc = MessageService.instance;
     }
 
 

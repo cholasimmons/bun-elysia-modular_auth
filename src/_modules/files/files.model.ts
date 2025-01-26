@@ -23,7 +23,7 @@ export interface IImageUpload {
     name: string;
     size: number;
     type: string;
-    'X-Amz-Meta-UserId'?: string;
+    'X-Amz-Meta-UploaderUserId'?: string;
     'X-Amz-Meta-CreatedDate'?: string;
     'X-Amz-Meta-Mode'?: string;
     'X-Amz-Meta-Purpose'?: string;
@@ -32,7 +32,7 @@ export interface IFileUpload {
     name: string;
     size: number;
     type: string;
-    'X-Amz-Meta-UserId'?: string;
+    'X-Amz-Meta-UploaderUserId'?: string;
     'X-Amz-Meta-CreatedDate'?: string;
     'X-Amz-Meta-Purpose'?: string;
 }

@@ -7,9 +7,21 @@ import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithPr
 import { InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
 
 
-
 export class UsersService {
+    private static _instance: UsersService;
+
     private resend = new Resend(Bun.env.RESEND_API_KEY);
+
+    constructor(){
+        console.info("UsersService is GO");
+    }
+
+    public static get instance(): UsersService{
+        if (!UsersService._instance) {
+            UsersService._instance = new UsersService();
+        }
+        return UsersService._instance;
+    }
 
     async getAll(isActive?: boolean, profiles?: boolean){
         try {
@@ -327,4 +339,44 @@ export class UsersService {
             }
         });
     }
+
+    // TODO: work on these
+    async addPrefs(userId: string, newPrefs: string){
+        const user:User|null = await db.user.update({
+            where: { id: userId },
+            data: { prefs: JSON.stringify(newPrefs)}
+        });
+    }
+    async removePrefs(userId: string, prefs: string){
+        const user:User|null = await db.user.update({
+            where: { id: userId },
+            data: { prefs: JSON.stringify(prefs)}
+        });
+    }
+    async replacePrefs(userId: string, newPrefs: string){
+        const user:User|null = await db.user.update({
+            where: { id: userId },
+            data: { prefs: JSON.stringify(newPrefs)}
+        });
+    }
+
+
+    async getCachedUser(userId: string): Promise<SafeUser>{
+        let user: SafeUser|null = await redisGet(`user:${userId}`);
+
+        if(!user){
+            const dbUser: User|null = await db.user.findUnique({
+                where: { id: userId }
+            });
+
+            if (!dbUser) throw new NotFoundError('User not found', 404, 'Could not find User in database or cache'); // Return null if user doesn't exist in the database
+
+            user = this.sanitizeUserObject(dbUser);
+
+            await redisSet(`user:${userId}`, user)
+        }
+
+        return user;
+    }
+    
 }

@@ -5,14 +5,18 @@ import { redisGet, redisSet } from "~config/redis";
 import { ConflictError, RateLimitError } from "~exceptions/custom_errors";
 
 export class MessageService {
-    private static instance: MessageService;
+    private static _instance: MessageService;
 
-    public static getInstance(): MessageService {
-        if (!MessageService.instance) {
-            MessageService.instance = new MessageService();
+    constructor(){
+        console.info("MessageService is GO");
+    }
+
+    public static get instance(): MessageService {
+        if (!MessageService._instance) {
+            MessageService._instance = new MessageService();
         }
         
-        return MessageService.instance;
+        return MessageService._instance;
     }
 
     default(){

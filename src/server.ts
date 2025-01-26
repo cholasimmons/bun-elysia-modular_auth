@@ -8,36 +8,43 @@ import { FilesHandler } from "~modules/files";
 import { WalletsRouter } from "~modules/wallets";
 import { MessageRouter } from "~modules/messages";
 import { CouponsRouter } from "~modules/coupons";
-import { initializeEventListeners } from "./_subscriptions/events";
+import { initializeEventListeners } from "./_queues/events";
+import { NotificationRouter } from "~modules/notifications";
+import consts from "~config/consts";
 
 
 // ROUTES
-export function registerControllers(app:Elysia){
-  console.debug("Loading Handlers...");
+export const v1 = new Elysia({
+  prefix: `/v${consts.api.version}`,
+})
 
   // Initialize Event listeners (Redis Pub/Sub) (Disabled)
   // initializeEventListeners();
   
-  // root
-  app.use(RootHandler);
-
-  // auth
-  app.use(AuthHandler);
-
-  // users
-  app.use(UsersHandler);
 
   // files
-  app.use(FilesHandler);
+  .use(FilesHandler)
+
+  // root
+  .use(RootHandler)
+
+  // users
+  .use(UsersHandler)
+
+  // auth
+  .use(AuthHandler)
 
   // wallet
-  app.use(WalletsRouter);
+  .use(WalletsRouter)
 
   // coupons
-  app.use(CouponsRouter);
+  .use(CouponsRouter)
   
   // messaging
-  app.use(MessageRouter);
+  .use(MessageRouter)
+
+  // push notifications
+  .use(NotificationRouter);
 
   console.debug("Loading Handlers... Done!");
-}
+

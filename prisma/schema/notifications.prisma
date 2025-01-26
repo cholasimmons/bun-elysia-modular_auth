@@ -1,0 +1,22 @@
+// This is a separate Prisma schema file,
+
+// Push Notification Management
+model WSConnections {
+    id              Int              @id @default(autoincrement()) // UUID for the message
+    userId          String              @unique @map("user_id")
+    connectionId    String              @map("connection_id") // to hold on to deleted messages for a while
+    // categories      String[]
+
+    createdAt       DateTime            @default(now()) @map("created_at")
+    updatedAt       DateTime?            @updatedAt @map("updated_at")
+    // isActive        Boolean             @default(true)  @map("is_active")
+
+    @@index([userId(sort: Desc)])
+    @@map("connections")
+    @@schema("notifications")
+}
+
+
+
+// ENUMS
+

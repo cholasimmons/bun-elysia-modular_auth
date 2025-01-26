@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["logs", "users", "files", "messages", "finance", "cases"]
+  schemas  = ["logs", "users", "files", "messages", "notifications", "finance", "cases"]
 }
 
 model OAuth_Account {
@@ -39,6 +39,7 @@ model User {
   profileId      String?   @unique
   oauth          OAuth_Account?
   authSession    Session[]
+  prefs           Json?
 
   @@index([id, email, createdAt(sort: Desc)])
   @@map("users")

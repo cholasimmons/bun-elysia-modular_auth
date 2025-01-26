@@ -16,17 +16,17 @@ import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
 import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
 import { PrismaUserWithProfile, SafeUser } from "~modules/users/users.model";
-import { emailQueue, queueOptions } from "src/_subscriptions/queues";
+import { emailQueue, queueOptions } from "src/_queues/queues";
 
 export class AuthController {
     // private authService: AuthService;
     private userService: UsersService;
-    private authService = AuthService.getInstance();
+    private authService: AuthService;
     url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${consts.api.versionPrefix}${consts.api.version}`;
 
     constructor() {
-        this.authService = AuthService.getInstance();
-        this.userService = new UsersService();
+        this.authService = AuthService.instance;
+        this.userService = UsersService.instance;
     }
 
     root({ cookie }: any):string{
@@ -135,12 +135,6 @@ export class AuthController {
                 return { message: "Invalid credentials" };
             }
 
-            if(e instanceof Error){
-                // General authentication error
-                set.status = HttpStatusEnum.HTTP_400_BAD_REQUEST;
-                return { message: "Authentication error" };
-            }
-
             if(e.name === 'PrismaClientInitializationError'){
 
                 set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
@@ -188,6 +182,7 @@ export class AuthController {
                 emailVerified: false,
                 isActive: true,
                 roles: autoUser ? autoUser?.roles : [Role.GUEST],
+                prefs: {"theme":"dark", "first_use":true},
                 hashedPassword
             } }) as User;
 

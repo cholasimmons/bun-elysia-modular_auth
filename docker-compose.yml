@@ -18,7 +18,7 @@ services:
       - PORT=3000
       - HOST=api
       - TZ=Africa/Harare
-      - JWSCRT=simplytestingelysiasjwtprod
+      - JWT_SECRET=simplytestingelysiasjwtprod
       - RESEND_API_KEY=re_1234
       - DATABASE_USER=postgres
       - DATABASE_PASSWORD=postgres

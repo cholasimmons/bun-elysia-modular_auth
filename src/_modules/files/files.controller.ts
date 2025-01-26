@@ -4,14 +4,34 @@ import mime from "mime";
 import { BucketType, IFileUpload, IImageUpload } from "./files.model";
 import { db, prismaSearch } from "~config/prisma";
 import { minioClient } from "~config/minioClient";
-import { FileStatus } from "@prisma/client";
+import { FileStatus, FileUpload } from "@prisma/client";
 import { Context } from "elysia";
+import { fileQueue, queueOptions } from "src/_queues/queues";
+
+const BUCKET_USERS: string = Bun.env.BUCKET_USERS || 'hello-users';
+const BUCKET_PRODUCTS: string = Bun.env.BUCKET_PRODUCTS || 'hello-products';
+const BUCKET_PHOTOS: string = Bun.env.BUCKET_PHOTOS || 'hello-photos';
 
 export class FilesController {
     private filesService: FilesService;
+    
 
     constructor(){
         this.filesService = new FilesService();
+    }
+
+    getAllFiles = async ({ set }:any) => {
+        const BUCKET = BucketType.FILES
+        console.log('[File Controller]...');
+        
+        try {
+            const files = await this.filesService.listAllFiles(BUCKET);
+        
+            set.status = 200;
+            return { data: files, message: 'Loaded all files'};
+        } catch (error) {
+            throw error;
+        }
     }
 
     getByFilename = async({ set, params: { filename } }: any) => {
@@ -71,7 +91,7 @@ export class FilesController {
 
     /** Upload a single file, not image */
     addSingleFile = async({ set, user, body: { file } }: any) => {
-        const BUCKET = BucketType.FILES;
+        const BUCKET: BucketType = BucketType.FILES;
         
         try {
             const upload = await db.$transaction(async (tx) =>{
@@ -82,26 +102,30 @@ export class FilesController {
                     return { message: 'Unable to upload file'};
                 }
 
-                await tx.fileUpload.create({
+                const uploaded =  await tx.fileUpload.create({
                     data:{
-                        origname: file.name,
-                        name: fsx?.name,
-                        type: fsx.type,
-                        size: fsx.size,
+                        origName: file.name,
+                        fileName: fsx?.name,
+                        fileType: fsx.type,
+                        fileSize: fsx.size,
                         bucket: BUCKET,
+                        key: fsx.name,
                         path: `/${BUCKET.toLowerCase()}/${fsx.name}`,
-                        isPublic: true,
+                        isPublic: false,
                         uploaderUserId: user.id,
+                        metadata: JSON.stringify(fsx),
+                        tags: ["file", mime.getExtension(file.type)!],
                         status: FileStatus.UPLOADED
                     }
                 })
+
+                fileQueue.add('file:upload', uploaded, queueOptions());
             })
            
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: upload, message: 'File uploaded to '+BUCKET }
+            return { data: upload, message: `${mime.getExtension(file.type)} uploaded to ${BUCKET}` }
         } catch (error:any) {
-            console.error("Upload failed: ", error);
 
             throw error;
         }
@@ -112,33 +136,40 @@ export class FilesController {
         const BUCKET = BucketType.FILES;
         
         try {
+            let fsx: IFileUpload[]|null = null;
+            let logs: FileUpload[]|null = null;
+
             await db.$transaction(async (tx) =>{
-                const fsx: IFileUpload[]|null = await this.filesService.uploadFiles(files, BUCKET, user.profileId, objectId);
+                fsx = await this.filesService.uploadFiles(files, BUCKET, user.profileId, objectId);
 
                 if(!fsx){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
                     return { message: 'Unable to upload files'};
                 }
 
-                fsx.forEach( async(f:any, i) => {
+                fsx.forEach( async(f:IFileUpload, i) => 
                     await tx.fileUpload.create({
                         data:{
-                            origname: fsx[i].name,
-                            name: f.name,
-                            type: f.type,
-                            size: f.size,
+                            origName: files[i].name,
+                            fileName: f?.name,
+                            fileType: f.type,
+                            fileSize: f.size,
                             bucket: BUCKET,
+                            key: f.name,
                             path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                            isPublic: false,
                             uploaderUserId: user.id,
+                            metadata: JSON.stringify(fsx),
+                            tags: ["file", mime.getExtension(f.type)!],
                             status: FileStatus.UPLOADED
                         }
                     })
-                })
+                )
             })
            
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: null, message: 'Files uploaded to '+BUCKET }
+            return { data: null, message: `files uploaded to ${BUCKET}` }
         } catch (error:any) {
             console.error("Upload failed: ", error);
 
@@ -151,24 +182,30 @@ export class FilesController {
         const BUCKET = BucketType.PHOTOS;
 
         try {
+            let uploadFile: FileUpload|null = null;
+            let fsx:any;
+            
             const upload = await db.$transaction(async (tx) =>{
-                const fsx: IImageUpload|null = await this.filesService.uploadPhoto(file, BUCKET, user.id, file.name);
+                fsx = await this.filesService.uploadPhoto(file, BUCKET, user.id, file.name, true);
 
                 if(!fsx){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
                     return { message: 'Unable to upload image'};
                 }
 
-                await tx.fileUpload.create({
+                uploadFile = await tx.fileUpload.create({
                     data:{
-                        origname: file.name,
-                        name: fsx?.name,
-                        type: fsx.type,
-                        size: fsx.size,
+                        origName: file.name,
+                        fileName: fsx?.name,
+                        fileType: fsx.type,
+                        fileSize: fsx.size,
                         bucket: BUCKET,
+                        key: fsx.name,
                         path: `/${BUCKET.toLowerCase()}/${fsx.name}`,
-                        isPublic: true,
+                        isPublic: false,
                         uploaderUserId: user.id,
+                        metadata: JSON.stringify(fsx),
+                        tags: ["photo", mime.getExtension(file.type)!],
                         status: FileStatus.UPLOADED
                     }
                 })
@@ -176,7 +213,7 @@ export class FilesController {
            
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
-            return { data: upload, message: 'Photo uploaded to '+BUCKET }
+            return { data: uploadFile, message: fsx.existingFile ? 'Photo already exists' : 'Photo uploaded to '+BUCKET }
         } catch (error:any) {
             throw error;
             // set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
@@ -190,7 +227,7 @@ export class FilesController {
         
         try {
             await db.$transaction(async (tx) =>{
-                const fsx: IImageUpload[]|null = await this.filesService.uploadPhotos(files, BUCKET, user.profileId, objectId);
+                const fsx: IImageUpload[]|null = await this.filesService.uploadPhotos(files, BUCKET, user.profileId, objectId, true);
 
                 if(!fsx){
                     set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR
@@ -200,13 +237,17 @@ export class FilesController {
                 fsx.forEach( async(f:any, i) => {
                     await tx.fileUpload.create({
                         data:{
-                            origname: fsx[i].name,
-                            name: f.name,
-                            type: f.type,
-                            size: f.size,
+                            origName: fsx[i].name,
+                            fileName: f?.name,
+                            fileType: f.type,
+                            fileSize: f.size,
                             bucket: BUCKET,
+                            key: f.name,
                             path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                            isPublic: false,
                             uploaderUserId: user.id,
+                            metadata: JSON.stringify(fsx),
+                            tags: ["photo", mime.getExtension(f.type)!],
                             status: FileStatus.UPLOADED
                         }
                     })
@@ -238,13 +279,17 @@ export class FilesController {
 
                 await tx.fileUpload.create({
                     data:{
-                        origname: file.name,
-                        name: f.name,
-                        type: f.type,
-                        size: f.size,
+                        origName: file.name,
+                        fileName: f?.name,
+                        fileType: f.type,
+                        fileSize: f.size,
                         bucket: BUCKET,
+                        key: f.name,
                         path: `/${BUCKET.toLowerCase()}/${f.name}`,
+                        isPublic: false,
                         uploaderUserId: user.id,
+                        metadata: JSON.stringify(f),
+                        tags: ["file", mime.getExtension(file.type)!],
                         status: FileStatus.UPLOADED
                     }
                 })
@@ -260,19 +305,7 @@ export class FilesController {
     }
 
 
-    getAllFiles = async ({ set }:any) => {
-        const BUCKET = BucketType.FILES
-        console.log('[File Controller]...');
-        
-        try {
-            const files = await this.filesService.listAllFiles(BUCKET);
-        
-            set.status = 200;
-            return { data: files, message: 'Loaded all files'};
-        } catch (error) {
-            throw error;
-        }
-    }
+
 
     getAllPhotos = async ({ set }:any) => {
         const BUCKET = BucketType.PHOTOS;
@@ -281,7 +314,7 @@ export class FilesController {
             const images = await this.filesService.listAllFiles(BUCKET);
         
             set.status = 200;
-            return { data: images, message: 'Loaded all photos'};
+            return { data: images, message: `Loaded ${this.getAllPhotos.length} photos`};
         } catch (error) {
             throw error;
         }
@@ -291,11 +324,12 @@ export class FilesController {
      * used to keep db in sync with file storage
      */
     fileRecon = async() => {
+        const BUCKET = BucketType.FILES;
         const dbFiles = await db.fileUpload.findMany();
   
         for (const file of dbFiles) {
             try {
-                await minioClient.statObject(BucketType.FILES, file.name);
+                await minioClient.statObject(BucketType.FILES, file.key);
             } catch (error:any) {
                 if (error.code === 'NotFound') {
                     // File exists in DB but not in MinIO

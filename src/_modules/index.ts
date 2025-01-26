@@ -5,3 +5,4 @@ export * from './files';
 export * from './wallets';
 export * from './coupons';
 export * from './messages';
+export * from './notifications';

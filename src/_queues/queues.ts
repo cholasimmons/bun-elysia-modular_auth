@@ -7,7 +7,7 @@ import { FileUpload } from "@prisma/client";
 
 
 // Services
-const authService = AuthService.getInstance();
+const authService = AuthService.instance;
 
 
 // Queues
@@ -53,8 +53,11 @@ const fileWorker = new Worker('fileQueue', async (job) => {
     const file: FileUpload|any = job.data;
 
     switch (job.name) {
+        case "file:upload":
+            console.log("[BullMQ Worker] ", file.name, " file uploaded");
+            break;
         case "file:photo:upload":
-            console.log("[BullMQ Worker] ", file, " uploaded");
+            console.log("[BullMQ Worker] ", file.name, " photo uploaded");
             break;
 
         default:

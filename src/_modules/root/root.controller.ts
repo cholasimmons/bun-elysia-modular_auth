@@ -24,6 +24,7 @@ export class RootController {
   async helloTime({ params, store }: any) {
     const timezone = store?.timezone;
     const currentHour = new Date().getHours();
+    const paramName = params?.name || '';
 
     function getGreeting(): string {
       if (currentHour >= 5 && currentHour < 12) {
@@ -38,7 +39,7 @@ export class RootController {
     }
 
     try {
-      return { message: `It's a beautiful ${getGreeting()} in ${timezone ?? 'your area'} isn't it ${params?.name || ''}?` }
+      return { message: `It's a beautiful ${getGreeting()} in ${timezone ?? 'your area'} isn't it ${paramName}?` }
     } catch (error) {
       console.error(error);
 

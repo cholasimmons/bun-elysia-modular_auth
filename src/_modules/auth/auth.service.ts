@@ -12,19 +12,19 @@ import { getDeviceIdentifier } from "~utils/utilities";
 
 
 class AuthService {
-    private static instance: AuthService;
+    private static _instance: AuthService;
     private resend: Resend;
 
     constructor(){
         this.resend = new Resend(String(Bun.env.RESEND_API_KEY));
     }
 
-    public static getInstance(): AuthService {
-        if (!AuthService.instance) {
-            AuthService.instance = new AuthService();
+    public static get instance(): AuthService {
+        if (!AuthService._instance) {
+            AuthService._instance = new AuthService();
         }
         
-        return AuthService.instance;
+        return AuthService._instance;
     }
 
 

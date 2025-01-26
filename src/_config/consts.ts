@@ -31,7 +31,7 @@ const consts = {
         blurAmount: 9
     },
     websocket: {
-        timeout: 7
+        timeout: 15
     },
     verificationCode: {
         length: 6

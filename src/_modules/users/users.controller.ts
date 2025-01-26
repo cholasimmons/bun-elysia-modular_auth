@@ -18,9 +18,9 @@ export class UsersController {
     private userSvc: UsersService;
 
     constructor() {
-        this.authService = AuthService.getInstance();
+        this.authService = AuthService.instance;
         this.fileService = new FilesService();
-        this.userSvc = new UsersService();
+        this.userSvc = UsersService.instance;
     }
 
     /* GET */
@@ -303,7 +303,7 @@ export class UsersController {
             // If User uploaded a photo, persist it to File Server and add it's ID to profile
             if(body.photo){
                 try{
-                    uploadedImage = await this.fileService.uploadPhoto(body.photo, BucketType.USER, id, usernameFromEmail(email), false)
+                    uploadedImage = await this.fileService.uploadPhoto(body.photo, BucketType.USERS, id, usernameFromEmail(email), false)
                 } catch(err:any) {
                     uploadError = err.toString();
                     console.error(err);
@@ -434,7 +434,7 @@ export class UsersController {
                 try {
                     // File service
                     await db.$transaction(async (tx) =>{
-                        const tempImage = await this.fileService.uploadPhoto(body.photo, BucketType.USER, user?.profileId, user?.id, false, false);
+                        const tempImage = await this.fileService.uploadPhoto(body.photo, BucketType.USERS, user?.profileId, user?.id, false, false);
         
                         if(!uploadedImage){
                             console.error('Unable to upload image');
@@ -445,13 +445,14 @@ export class UsersController {
 
                         await tx.fileUpload.create({
                             data:{
-                                origname: body.photo.name,
-                                name: uploadedImage.name,
-                                type: uploadedImage.type,
-                                size: uploadedImage.size,
-                                bucket: BucketType.USER,
-                                path: `/${BucketType.USER.toLowerCase()}/${uploadedImage.name}`,
-                                userId: user.id,
+                                origName: body.photo.name,
+                                fileName: uploadedImage.name,
+                                fileType: uploadedImage.type,
+                                fileSize: uploadedImage.size,
+                                key: uploadedImage.name,
+                                bucket: BucketType.USERS,
+                                path: `/${BucketType.USERS.toLowerCase()}/${uploadedImage.name}`,
+                                uploaderUserId: user.id,
                                 status: FileStatus.UPLOADED,
                                 isPublic: Boolean(true)
                             }

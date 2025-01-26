@@ -13,6 +13,7 @@ export const FilesHandler = new Elysia({
     detail: { description: 'File Management endpoints', tags:[ 'Files' ] }
 })
 
+    // REQUIRED
     // .onBeforeHandle(checkAuth)
 
     .get('/file', files.getAllFiles, {
@@ -50,12 +51,12 @@ export const FilesHandler = new Elysia({
     })
 
     .get('/photo', files.getAllPhotos, {
-        beforeHandle: [checkIsStaff || checkIsAdmin],
+        // beforeHandle: [checkIsStaff || checkIsAdmin],
         query: t.Object({
             ...paginationOptions
         }),
         response: {
-            200: t.Object({ data: t.Array(t.Any()), message: t.String({ default: 'Loaded all photos'}) })
+            200: t.Object({ data: t.Array(t.String()), message: t.String({ default: 'Loaded all photos'}) })
         },
         detail: swaggerDetails('Get All Photos')
     })
@@ -131,3 +132,5 @@ export const FilesHandler = new Elysia({
         body: ImageBodyDTO,
         detail: swaggerDetails('Upload User Photo', 'Do not use this endpoint manually')
     })
+
+    .all('/', ({ set }) => { return { message: "Route does not exist"} })

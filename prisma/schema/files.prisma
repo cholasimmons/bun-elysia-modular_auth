@@ -4,23 +4,26 @@
 
 model FileUpload {
   id              String        @id @default(uuid()) @unique
-  origname        String        @map("orig_file_name")
-  name            String        @map("file_name")
-  type            String?       @map("mime_type")
-  size            Int           @map("file_size")
-  metadata        Json?
+  origName        String        @map("orig_file_name")
+  fileName            String        @map("file_name")
+  fileType            String?       @map("mime_type")
+  fileSize            Int           @map("file_size")
   bucket          String
+  key             String
   path            String        @map("file_path")
   uploaderUserId  String        @map("uploader_user_id")
   status          FileStatus    @default(UPLOAD_FAILED)
   isPublic        Boolean       @default(false)
-  comment         String?
+  metadata        Json?
+  tags            String[]
+  hash            String?
 
+  comment         String?
   isActive        Boolean       @default(true) @map("is_active")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt() @map("updated_at")
   
-  @@index([name, bucket, uploaderUserId, createdAt(sort: Asc)])
+  @@index([fileName, bucket, uploaderUserId, createdAt(sort: Asc)])
   @@map("file_uploads")
   @@schema("files")
 }

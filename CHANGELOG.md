@@ -1,11 +1,18 @@
 # Changelog
 
 
-## [0.4.5] - 22-01-2025
+## [0.4.5] - 26-01-2025
 
 ### Added
 
 - More custom errors to handle S3 issues
+- `prefs` Json field added to User schema, for user\'s preferences
+- `modifyPrefs` function added to Users Service, to modify a user\'s preferences
+- Added `redisKeys`, `redisDel`, `redisGetAll` and `redisExists` to the redisService
+- New User service (`getCachedUser`) that checks for a User by ID in cache, then falls back to database, otherwise returns a `NotFoundError`
+- Notifications Module & schema
+- `ConnectionsManager` to handle all web socket connectivity (under Notifications Module)
+- `onStart()` lifecycle hook, loads all websocket connection ID's from database to cache
 
 
 ### Changed
@@ -14,10 +21,14 @@
 - BUCKET names modified to allow for a more "multi-tenancy" setup on MinIO
 - Files module heavily modified to allow CRUD actions on S3 storage
 - Files schema now accomodates metadata JSON type, and userProfileId changed to uploaderUserId
+- Modified the way `server.ts` is loaded in the main `index.ts`, now using Elysia as a plugin, with "v1" prefix.
+- `_subscriptions` folder changed again, to `_queues_` so as to not confuse it for User Subscriptions or WebSocketSubscriptions.
+- Implemented singleton pattern for ConnectionsManager, NotificationService, UsersService, AuthService
+
 
 ### Updated
 
-- Bun 1.1.45
+- Bun 1.2.0
 
 
 

@@ -33,7 +33,7 @@
       "~middleware/*":["src/_middleware/*"],
       "~exceptions/*":["src/_exceptions/*"],
       "~html/*":["public/*"],
-      "~subscriptions/*":["src/_subscriptions/*"]
+      "~subscriptions/*":["src/_queues/*"]
     },
     /* Specify a set of entries that re-map imports to additional lookup locations. */
     // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
