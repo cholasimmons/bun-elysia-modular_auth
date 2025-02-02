@@ -1,6 +1,6 @@
-# Modular Elysia JS app | Authentication template (Bun runtime)
+# Modular Elysia JS app | Elysia Template (Bun runtime)
 
-## [Test It Here](https://hello.simmons.studio/api/v1)
+## [Test It Here](https://api.hello.simmons.studio/v1)
 
 ### [Awesome REST Client](https://insomnia.rest/download)
 #### [Android Mobile API Tester](https://play.google.com/store/apps/details?id=apitester.org&hl=en)
