@@ -1,7 +1,6 @@
 import { HttpStatusEnum } from 'elysia-http-status-code/status';
-import consts from '~config/consts';
+import { constants } from '~config/constants';
 import { zambiaProvinces } from './provinces';
-import { DatabaseError } from 'src/_exceptions/custom_errors';
 
 export class RootController {
   constructor(){}
@@ -12,7 +11,7 @@ export class RootController {
       
       const isBrowser = headers.get('accept').includes('text/html');
       
-      return isBrowser ? Bun.file('public/welcome.html') : { message: `Welcome to the ${consts.server.name} Server! Version ${consts.server.version}` }
+      return isBrowser ? Bun.file('public/welcome.html') : { message: `Welcome to the ${constants.server.name} Server! Version ${constants.server.version}` }
     } catch (error) {
       // console.error(error);
 
@@ -79,11 +78,11 @@ export class RootController {
 
   async init({ set, store }:any) {
     const spec = {
-      name: consts.server.name,
-      version: consts.server.version,
+      name: constants.server.name,
+      version: constants.server.version,
       maintenance: store.maintenanceMode ?? 'Unavailable',
       timezone: store.timezone,
-      creator: consts.server.author,
+      creator: constants.server.author,
       host: 'Hetzner Cloud, Helsinki'
     };
 
@@ -93,11 +92,11 @@ export class RootController {
   
   async health({store}:any){
     const spec = {
-      "Server Name": consts.server.name,
-      "Version": consts.server.version,
+      "Server Name": constants.server.name,
+      "Version": constants.server.version,
       "Maintenance Mode": store.maintenanceMode ?? 'Unavailable',
       "Timezone": store.timezone,
-      "Creator": consts.server.author
+      "Creator": constants.server.author
     };
 
     return { data: spec, message: `All Systems GO!` }

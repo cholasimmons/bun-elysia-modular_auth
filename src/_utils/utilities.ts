@@ -1,4 +1,4 @@
-import consts from "~config/consts";
+import { constants } from "~config/constants";
 import { lucia } from "~config/lucia";
 import { db } from "~config/prisma";
 
@@ -51,18 +51,18 @@ export function phoneSanitizer(phone: string){
     let cleaned = phone.replace(/\D/g, '');
 
     // Check if the number has 12 digits and starts with the country code
-    if (cleaned.length === 12 && cleaned.startsWith(consts.phone.countryCode.toString())) {
+    if (cleaned.length === 12 && cleaned.startsWith(constants.phone.countryCode.toString())) {
         // Strip the country code
-        cleaned = cleaned.slice(consts.phone.countryCode.toString().length);
+        cleaned = cleaned.slice(constants.phone.countryCode.toString().length);
     }
 
     // Remove all leading zeros
     cleaned = cleaned.replace(/^0+/, '');
 
     // Ensure the number is within the required length
-    if (cleaned.length >= consts.phone.minLength && cleaned.length <= consts.phone.maxLength) {
+    if (cleaned.length >= constants.phone.minLength && cleaned.length <= constants.phone.maxLength) {
         // Append the country code
-        const formattedNumber = `${consts.phone.countryCode}${cleaned}`;
+        const formattedNumber = `${constants.phone.countryCode}${cleaned}`;
         return formattedNumber;
     }
 

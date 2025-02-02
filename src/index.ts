@@ -1,7 +1,7 @@
-import { Elysia } from "elysia";
+import { Context, Elysia } from "elysia";
 
 // Configurations
-import consts from "~config/consts";
+import {constants} from "~config/constants";
 import { lucia } from "~config/lucia";
 
 // Plugins
@@ -23,7 +23,7 @@ import { Resource } from '@opentelemetry/resources';
 
 
 // Middleware
-import { bootLogger, gracefulShutdown, requestLogger } from "~utils/systemLogger";
+import { bootLogger, gracefulShutdown } from "~utils/systemLogger";
 import { errorMessages } from "~middleware/errorMessages";
 import { checkMaintenanceMode } from "~middleware/lifecycleHandlers";
 import customResponse from "~middleware/customResponse";
@@ -31,26 +31,72 @@ import { sessionDerive } from "~middleware/session.derive";
 import { headerCheck } from "~middleware/authChecks";
 
 // Route Handler
-import { v1 } from "./server";
-import { FilesController } from "~modules/files";
+import { server_v1 } from "./server";
+import { FilesService } from "~modules/files";
 import { AuthService, MessageService, NotificationService } from "~modules/index";
+
+// Metrics/Logging
+import metricsMiddleware from "elysia-prometheus-metrics";
+import { collectDefaultMetrics, Registry } from "prom-client";
+import { fileLogger, logger } from "@bogeychan/elysia-logger";
 
 try {
   console.log("Initializing Elysia...");
 
-  const authService = AuthService.instance;
-  const files = new FilesController();
-  const messageService = MessageService.instance;
-  const notificationService = NotificationService.instance;
-
   if (import.meta.main) {
     const PORT = Bun.env.PORT || 3000;
 
+    const filesService = FilesService.instance;
+    const authService = AuthService.instance;
+    const messageService = MessageService.instance;
+    const notificationService = NotificationService.instance;
+
+    const register = new Registry();
+    collectDefaultMetrics({ register, prefix: 'elysia_'});
+
+    // Check if inside a docker container
+    const isDocker = Bun.env.DOCKER_ENV === 'true'; // Flag for Docker
+
+    // Create folder pather for Win, Linux or Docker
+    const projectDir = import.meta.dir;
+    const projectRoot = projectDir.replace(/[/\\][^/\\]+$/, '');
+    const logFilePath = isDocker
+      ? '/usr/src/app/logs/elysia.log' // Docker absolute path
+      : projectRoot+'\\logs\\elysia.log'; // Local absolute path
+
+      console.log(logFilePath);
+
     const app = new Elysia({
-      name: consts.server.name,
-      // websocket: { idleTimeout: consts.websocket.timeout },
-      detail: { description: `${consts.server.name} Server API`, tags: ['Root'] }
+      name: constants.server.name,
+      // websocket: { idleTimeout: constants.websocket.timeout },
+      detail: { description: `${constants.server.name} Server API`, tags: ['Root'] }
     })
+
+    .use(metricsMiddleware({}))
+
+    // Configure the @bogeychan logger plugin
+    .use(
+      logger({
+        level: 'error', // Set the log level
+        stream: process.stdout, // Also log to stdout
+        autoLogging: true, // default
+        // autoLogging: {
+        //   ignore(ctx) {
+        //     return true; // ignore logging for requests based on condition
+        //   },
+        // },
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+          },
+        },
+      })
+    )
+    // .use(fileLogger({
+    //   file: logFilePath, // Save logs to a file
+    //   // level: 'error'
+    // }));
 
     // Temporarily disabled
     // if(Boolean(Bun.env.DO_TELEMETRY)){
@@ -64,10 +110,10 @@ try {
     //   const spanProcessor = new BatchSpanProcessor(traceExporter);
 
     //   app.use(opentelemetry({
-    //     serviceName: consts.server.name,
+    //     serviceName: constants.server.name,
     //     spanProcessors: [spanProcessor],
     //     resource: new Resource({
-    //       ["service.name"]: consts.server.name,
+    //       ["service.name"]: constants.server.name,
     //       ["service.version"]: 1.0,
     //       ["deployment.environment"]: Bun.env.NODE_ENV
     //     })
@@ -87,19 +133,19 @@ try {
     /* Extensions */
 
     // Fancy logs
-    .use(Logestic.preset("common"))
+    // .use(Logestic.preset("common"))
 
 
     // Swagger
     .use(swagger({ autoDarkMode: true,
       documentation: {
         info: {
-            title: `${consts.server.name}`,
-            version: `${consts.server.version}`,
-            description: `Server API for ${consts.server.name}`,
+            title: `${constants.server.name}`,
+            version: `${constants.server.version}`,
+            description: `Server API for ${constants.server.name}`,
             contact: {
-              name: consts.server.author,
-              email: consts.server.email
+              name: constants.server.author,
+              email: constants.server.email
             }
         }
       },
@@ -136,7 +182,7 @@ try {
       jwt({
           name: 'jwt',
           secret: Bun.env.JWT_SECRET!,
-          exp: `${consts.auth.jwtMaxAge}d`
+          exp: `${constants.auth.jwtMaxAge}d`
       })
     )
   
@@ -154,11 +200,11 @@ try {
           console.log("Cleared all expired verification codes. ",res)
         });
 
-        files.fileRecon().then((r:any) => {
-          console.log('File recon success. ',r.fileName);
-        }).catch(e => {
-          console.error("Couldn't recon file",);
-        })
+        // filesService.fileRecon().then((r:any) => {
+        //   console.log('File recon success. ',r.fileName);
+        // }).catch(e => {
+        //   console.error("Couldn't recon file",);
+        // })
 
         console.log('[CRON] 24 hour mark')
 
@@ -214,17 +260,18 @@ try {
         console.log(`${count} stashed websocket connections restored`);
       });
     })
-    .onBeforeHandle([checkMaintenanceMode, headerCheck]) // Checks if server is in maintenance mode
+    .onBeforeHandle([checkMaintenanceMode]) // Checks if server is in maintenance mode
     .mapResponse(customResponse)
     .onStop(gracefulShutdown)
 
     // ROUTES
     .get('/', () => { return { message: 'Server running, select version'} })
+    .get('/health', ({ set }:Context) => { set.status = 200; return { message: 'All Systems GO'} })
     .ws("/ws", {
           ping: (message:string) => message,
           pong: (message:string) => message,
     })
-    .use(v1)
+    .use(server_v1)
     // registerControllers(app as any);
 
 

@@ -6,17 +6,16 @@ import { alphabet, generateRandomString, sha256 } from "oslo/crypto";
 import { db } from "~config/prisma";
 import { lucia } from "~config/lucia";
 import { Resend } from "resend";
-import consts from "~config/consts";
-import { PrismaUserWithProfile } from "~modules/users/users.model";
+import { constants } from "~config/constants";
 import { getDeviceIdentifier } from "~utils/utilities";
 
-
-class AuthService {
+export class AuthService {
     private static _instance: AuthService;
     private resend: Resend;
 
-    constructor(){
+    private constructor(){
         this.resend = new Resend(String(Bun.env.RESEND_API_KEY));
+        console.info("|| AuthService is GO");
     }
 
     public static get instance(): AuthService {
@@ -30,21 +29,21 @@ class AuthService {
 
 
     /**Validate email and password */
-    validateCredentials(email:string, password:string, confirmPassword?:string){
+    public validateCredentials(email:string, password:string, confirmPassword?:string){
         const emailRegex = /^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
 
         try {
             // basic check
             if ( 
                 (typeof email !== "string" || 
-                email.length < (consts.auth.passwordMinLength ?? 8) || email.length > 32) && emailRegex.test(email)
+                email.length < (constants.auth.passwordMinLength ?? 8) || email.length > 32) && emailRegex.test(email)
             ) {
                 throw 'Email is not valid';
             }
 
             if (
                 typeof password !== "string" ||
-                password.length < (consts.auth.passwordMinLength ?? 8) || password.length > 32
+                password.length < (constants.auth.passwordMinLength ?? 8) || password.length > 32
             ) {
                 throw 'Invalid password format';
             }
@@ -58,7 +57,7 @@ class AuthService {
     }
 
     // Encodes user data and creates auth session via Lucia Auth v3
-    async createLuciaSession(userId:string, headers: Headers, profileId?: string|null, rememberMe?:boolean):Promise<Session>{
+    public async createLuciaSession(userId:string, headers: Headers, profileId?: string|null, rememberMe?:boolean):Promise<Session>{
         // const userAgent = headers.get('user-agent');
         // const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
 
@@ -89,7 +88,7 @@ class AuthService {
     /** Dynamic Auth Session (JWT|Cookie)
      * Encodes user data and creates auth session via Lucia Auth v3
      * */ 
-    createDynamicSession = async (
+    public createDynamicSession = async (
         authMethod:'JWT'|'Cookie',
         jwt:any,
         user:Partial<User>,
@@ -100,7 +99,7 @@ class AuthService {
 
         try {
             if(authMethod === 'JWT'){
-                const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
+                const jwtExpiresIn = (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) +'d'; // in days
 
                 // Generate access token (JWT) using logged-in user's details
                 const accessToken = await jwt.sign({
@@ -146,8 +145,8 @@ class AuthService {
         }
     }
 
-    async createJWTs(payload: any, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
-        const jwtExpiresIn = (rememberMe ? consts.auth.jwtMaxAge : consts.auth.jwtMinAge) +'d'; // in days
+    public async createJWTs(payload: any, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
+        const jwtExpiresIn = (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) +'d'; // in days
 
         const accessToken = await jwt.sign(payload, { expiresIn:jwtExpiresIn});
     
@@ -156,7 +155,7 @@ class AuthService {
         return { accessToken, refreshToken };
     }
 
-    async refreshTokens(refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
+    public async refreshTokens(refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
         // Validate the refresh token
         const payload = await jwt.verify(refreshToken);
         if (!payload) throw new Error('Invalid refresh token');
@@ -166,11 +165,11 @@ class AuthService {
         return newTokens;
     }
 
-    async generateEmailVerificationCode(userId: string, email: string): Promise<string> {
-        console.log(`Generating ${consts.verificationCode.length}-digit Email Verification Code...`);
+    public async generateEmailVerificationCode(userId: string, email: string): Promise<string> {
+        console.log(`Generating ${constants.verificationCode.length}-digit Email Verification Code...`);
         
         await db.emailVerificationCode.deleteMany({ where: { userId: userId} });
-        const code = generateRandomString(consts.verificationCode.length, alphabet("0-9", "a-z")).toUpperCase();
+        const code = generateRandomString(constants.verificationCode.length, alphabet("0-9", "a-z")).toUpperCase();
         await db.emailVerificationCode.create({
             data: {
                 userId,
@@ -182,29 +181,30 @@ class AuthService {
         return code;
     }
 
-    async sendEmailVerificationCode(email:string, verificationCode:string){
+    public async sendEmailVerificationCode(email:string, verificationCode:string){
         console.log(`Sending ${verificationCode} to ${email}`);
         // TODO: Implement timeout to limit the resends
 
         try {
-            await this.resend.emails.send({
-                from: 'onboarding@resend.dev',
-                to: email,
-                subject: 'Your Verification Code',
-                html: `<strong>
-                    ${email}<br>
-                    ${verificationCode}<br>
-                    <a href="http://${Bun.env.HOST}:3000/v1/auth/email-verification/${verificationCode}?email=${email}">Verify Account</a>
-                </strong>`,
-            });
-        } catch (error) {
-            console.error(error);
+            console.log("IMPLEMENT THIS");
             
-            throw 'Could not send email with verification code'
+
+            // await this.resend.emails.send({
+            //     from: 'onboarding@resend.dev',
+            //     to: email,
+            //     subject: 'Your Verification Code',
+            //     html: `<strong>
+            //         ${email}<br>
+            //         ${verificationCode}<br>
+            //         <a href="http://${Bun.env.HOST}:3000/v1/auth/email-verification/${verificationCode}?email=${email}">Verify Account</a>
+            //     </strong>`,
+            // });
+        } catch (error) {
+            throw error;
         }
     }
 
-    async verifyVerificationCode(user: User, _code:string):Promise<boolean>{
+    public async verifyVerificationCode(user: User, _code:string):Promise<boolean>{
         await db.$connect();
 
         const databaseCode = await db.emailVerificationCode.findUnique({ where: { userId: user.id }, select: { code: true, expiresAt: true, email: true } })
@@ -226,14 +226,14 @@ class AuthService {
 
     }
 
-    health(){
+    public health(){
         console.log('Auth Service working ok! HEALTH');
         
         return 'Auth Service working ok! HEALTH'
     }
 
 
-    async createPasswordResetToken(userId: string): Promise<string> {
+    public async createPasswordResetToken(userId: string): Promise<string> {
         // optionally invalidate all existing tokens
         await db.passwordResetToken.deleteMany({ where: { userId: userId } });
         const tokenId = generateId(40);
@@ -247,7 +247,7 @@ class AuthService {
         return tokenId;
     }
 
-    async sendPasswordResetToken(email:string, verificationLink:string) {
+    public async sendPasswordResetToken(email:string, verificationLink:string) {
         console.debug(`Password reset token to be sent to ${email}: ${verificationLink}`);
 
         try {
@@ -265,7 +265,7 @@ class AuthService {
         }
     }
 
-    async validateAutoEnrollment(registrationEmail:string): Promise<Partial<AutoEnrol>|null> {
+    public async validateAutoEnrollment(registrationEmail:string): Promise<Partial<AutoEnrol>|null> {
         console.debug(`validating new registration...`);
 
         try {
@@ -287,7 +287,7 @@ class AuthService {
         }
     }
 
-    async clearExpiredEmailVerificationCodes(){
+    public async clearExpiredEmailVerificationCodes(){
         let oneDayAgo = new Date();
         oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
@@ -296,5 +296,3 @@ class AuthService {
         });
     }
 }
-
-export default AuthService;

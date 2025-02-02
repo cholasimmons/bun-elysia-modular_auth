@@ -5,12 +5,12 @@ import { BucketType, IImageUpload, UploadMode } from "./files.model";
 import mime from "mime";
 import { BunFile } from "bun";
 import { dateToFilename } from "~utils/utilities";
-import consts from "~config/consts";
-import { BadRequestError, ConflictError, NotFoundError, ThirdPartyServiceError } from "~exceptions/custom_errors";
+import { constants } from "~config/constants";
+import { BadRequestError, NotFoundError } from "~exceptions/custom_errors";
 import { db } from "~config/prisma";
 import { FileStatus } from "@prisma/client";
-import { fileQueue, queueOptions } from "src/_queues/queues";
-
+import { fileQueue, queueOptions } from "~queues/queues";
+import { Queue } from "bullmq";
 
 const BUCKET_FILES: string = Bun.env.BUCKET_FILES || 'hello-files';
 const WATERMARK_SQUARE: BunFile = Bun.file('./public/images/logos/elysia_icon.webp');
@@ -20,9 +20,21 @@ const imageMainQuality: number = Number(Bun.env.IMAGE_QUALITY) ?? 75;
 const imageThumbQuality: number = Number(Bun.env.THUMBNAIL_QUALITY) ?? 40;
 
 export class FilesService {
+    private static _instance: FilesService;
+
+    private constructor(){
+        console.info("|| FilesService is GO");
+    }
+
+    public static get instance(): FilesService {
+        if(!FilesService._instance){
+            FilesService._instance = new FilesService();
+        }
+        return FilesService._instance;
+    }
 
     // Check if selected bucket exists
-    pingBucket = async(bucket: BucketType): Promise<boolean> => {
+    public pingBucket = async(bucket: BucketType): Promise<boolean> => {
         try {
             // console.log(`checking bucket ${this.fetchBucketName(bucket)}...`);
             let bucketExists = await minioClient.bucketExists(bucket);
@@ -38,7 +50,7 @@ export class FilesService {
     }
 
     // Check if selected bucket exists, if not then create it
-    pingBucketAndCreate = async(bucket: BucketType): Promise<boolean> => {
+    public pingBucketAndCreate = async(bucket: BucketType): Promise<boolean> => {
         try {
             const bucketName = bucket.toString();
             
@@ -60,7 +72,7 @@ export class FilesService {
 
     // GENERIC: files
 
-    listAllFiles = async(bucket: BucketType) => {
+    public listAllFiles = async(bucket: BucketType) => {
         try {
             const allFiles:any = await getFiles(bucket);
 
@@ -77,7 +89,7 @@ export class FilesService {
         }
     }
 
-    getFileByName = async(filename: string, bucket: BucketType) => {
+    public getFileByName = async(filename: string, bucket: BucketType) => {
         try {
             const res = await getFile(filename, bucket);
 
@@ -90,7 +102,7 @@ export class FilesService {
         }
     }
 
-    getFilesByUserId = async(userId: string) => {
+    public getFilesByUserId = async(userId: string) => {
         const BUCKET = BUCKET_FILES;
         try {
             // const res = await getFile(filename, BucketType.FILES);
@@ -108,7 +120,7 @@ export class FilesService {
         }
     }
 
-    uploadFile = async (file: File, fileName: string, bucket: BucketType, uploaderUserId: string) => {
+    public uploadFile = async (file: File, fileName: string, bucket: BucketType, uploaderUserId: string) => {
         const createdDate = new Date();
         const bucketName: string = bucket;
 
@@ -153,7 +165,7 @@ export class FilesService {
         }
     }
 
-    uploadFiles = async (files: File[], fileName: string, bucket: BucketType, userProfileId: string) => {
+    public uploadFiles = async (files: File[], fileName: string, bucket: BucketType, userProfileId: string) => {
         const createdDate = new Date();
         const bucketName: string = bucket;
 
@@ -206,7 +218,7 @@ export class FilesService {
     // GENERIC: images
 
 
-    uploadPhoto = async (file: File, bucket: BucketType, userId: string, fileName?: string, hasWatermark?: boolean, hasBlur?: boolean) => {
+    public uploadPhoto = async (file: File, bucket: BucketType, userId: string, fileName?: string, hasWatermark?: boolean, hasBlur?: boolean) => {
 
         const bucketName:string = bucket; //this.fetchBucketName(bucket);
 
@@ -245,8 +257,8 @@ export class FilesService {
 
             const resizedBuffer = await sharp(arrayBuffer)
                 // .composite([{ input: watermarkBuffer, gravity: 'southeast', blend: "over" }]) // Adjust gravity as needed
-                .resize(consts.images.main.width || 1280, consts.images.main.height || 1280)
-                .toFormat(imageFormat, {quality: imageMainQuality || consts.images.main.quality || 78})
+                .resize(constants.images.main.width || 1280, constants.images.main.height || 1280)
+                .toFormat(imageFormat, {quality: imageMainQuality || constants.images.main.quality || 78})
                 .toBuffer()
             
             let finalBuffer = resizedBuffer;
@@ -260,13 +272,13 @@ export class FilesService {
             // Blur a copy of the main image. Used for "Free Users"
             let blurBuffer: Buffer = resizedBuffer;
             if(hasBlur){
-                blurBuffer = await sharp(blurBuffer).blur(consts.images.blurAmount || 9).toFormat(imageFormat, {quality: imageMainQuality || consts.images.main.quality || 78}).toBuffer();
+                blurBuffer = await sharp(blurBuffer).blur(constants.images.blurAmount || 9).toFormat(imageFormat, {quality: imageMainQuality || constants.images.main.quality || 78}).toBuffer();
             }
 
             // Creates thumbnail version of main watermarked image
             const thumbImage = await sharp(finalBuffer)
-                .resize(consts.images.thumbnail.width || 196, consts.images.thumbnail.height || 196)
-                .toFormat(imageFormat, {quality: imageThumbQuality || consts.images.thumbnail.quality || 48})
+                .resize(constants.images.thumbnail.width || 196, constants.images.thumbnail.height || 196)
+                .toFormat(imageFormat, {quality: imageThumbQuality || constants.images.thumbnail.quality || 48})
                 .toBuffer();
             // Upload images to MinIO
             await Promise.all([
@@ -285,7 +297,7 @@ export class FilesService {
         }
     }
 
-    uploadPhotos = async (files: File[], bucket: BucketType, userProfileId: string, fileName?: string, hasWatermark?: boolean, hasBlur?:boolean) => {
+    public uploadPhotos = async (files: File[], bucket: BucketType, userProfileId: string, fileName?: string, hasWatermark?: boolean, hasBlur?:boolean) => {
         const createdDate = new Date();
         const bucketName = bucket; // this.fetchBucketName(bucket);
         const generatedName = fileName ? fileName?.toWellFormed() : dateToFilename(createdDate);
@@ -323,8 +335,8 @@ export class FilesService {
 
                 // Convert photo into buffer data
                 const mainImage = await sharp(arrayBuffer)
-                    .resize(consts.images.main.width || 1280, consts.images.main.height || 1280)
-                    .toFormat(imageFormat, {quality: imageMainQuality || consts.images.main.quality || 78})
+                    .resize(constants.images.main.width || 1280, constants.images.main.height || 1280)
+                    .toFormat(imageFormat, {quality: imageMainQuality || constants.images.main.quality || 78})
                     .toBuffer()
                 
                 // Composite the watermark over the main image
@@ -339,13 +351,13 @@ export class FilesService {
                 // Blur a copy of the main image. Used for "Free Users"
                 let blurBuffer: Buffer = mainImage;
                 if(hasBlur){
-                    blurBuffer = await sharp(blurBuffer).resize(consts.images.main.width || 640, consts.images.main.height || 640).blur(consts.images.blurAmount).toFormat(imageFormat, {quality: imageMainQuality}).toBuffer();
+                    blurBuffer = await sharp(blurBuffer).resize(constants.images.main.width || 640, constants.images.main.height || 640).blur(constants.images.blurAmount).toFormat(imageFormat, {quality: imageMainQuality}).toBuffer();
                 }
 
                 // Creates thumbnail version of main watermarked image
                 const thumbImage = await sharp(finalBuffer)
-                    .resize(consts.images.thumbnail.width || 196, consts.images.thumbnail.height || 196)
-                    .toFormat(imageFormat, {quality: imageThumbQuality || consts.images.thumbnail.quality || 48})
+                    .resize(constants.images.thumbnail.width || 196, constants.images.thumbnail.height || 196)
+                    .toFormat(imageFormat, {quality: imageThumbQuality || constants.images.thumbnail.quality || 48})
                     .toBuffer();
 
                 // Upload images to MinIO

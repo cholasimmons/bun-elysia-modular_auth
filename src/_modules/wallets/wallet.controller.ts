@@ -10,7 +10,7 @@ export class WalletController {
     private walletService: WalletService;
 
     constructor(){
-        this.walletService = WalletService.getInstance();
+        this.walletService = WalletService.instance;
     }
 
     async getAll({ set, user, query }: any):Promise<{data:Wallet[], message:string}|{message:string}>{

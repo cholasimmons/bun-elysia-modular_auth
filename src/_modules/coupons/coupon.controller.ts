@@ -8,7 +8,7 @@ export class CouponController {
     private couponService: CouponService;
 
     constructor(){
-        this.couponService = CouponService.getInstance();
+        this.couponService = CouponService.instance;
     }
     
 

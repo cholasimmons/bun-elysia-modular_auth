@@ -1,6 +1,6 @@
 # Modular Elysia JS app | Authentication template (Bun runtime)
 
-## [Test It Here](https://hello.simmons.studio/api/v1)
+## [Test It Here](https://api.hello.simmons.studio/v1)
 
 ### [Awesome REST Client](https://insomnia.rest/download)
 #### [Android Mobile API Tester](https://play.google.com/store/apps/details?id=apitester.org&hl=en)
@@ -23,6 +23,7 @@
 - S3 File Storage service
 - In-memory cache for rapid data retrieval
 - Event queuing
+- Real-time communication with websockets
 
 
 
@@ -40,7 +41,7 @@ bunx prisma generate && bunx prisma migrate deploy
 
 
 ## Development
-Ensure the system configuration file `src/_config/consts.ts` is to your liking. It includes configurations that are referenced across your entire app such as server name, API version, cookieName e.tc...
+Ensure the system configuration file `src/_config/constants.ts` is to your liking. It includes configurations that are referenced across your entire app such as server name, API version, cookieName e.tc...
 
 To start the development server run:
 ```bash
@@ -56,7 +57,7 @@ Download the swagger OpenAPI json file from [Swagger](http://localhost:3000/v1/s
 ## Authenticating a User
 The endpoint `/auth/register` allows you to create a new user account, while `/auth/login` logs you in.
 This auth system uses cookies and JWT's.
-The cookie name along with other configuration settings can be set in the typescript file `src/_config/consts.ts`.
+The cookie name along with other configuration settings can be set in the typescript file `src/_config/constants.ts`.
 
 ### **Client Headers**
 The headers sent from your client must specify `X-Client-Type` with either `JWT` or `Cookie`

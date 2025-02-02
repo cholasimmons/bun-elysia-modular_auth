@@ -1,5 +1,4 @@
 import { db } from "~config/prisma";
-import { Message, WSConnections } from "@prisma/client";
 import { redisDel, redisExists, redisGet, redisGetAll, redisKeys, redisSet } from "~config/redis";
 import { ConnectionManager } from "./connectionsManager";
 
@@ -8,8 +7,9 @@ export class NotificationService {
 
     public manager: ConnectionManager;
 
-    constructor(){
-        console.info("NotificationService is GO");
+    private constructor(){
+        console.info("|| NotificationService is GO");
+        
         
         this.manager = ConnectionManager.instance;
     }

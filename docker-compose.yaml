@@ -1,6 +1,22 @@
 name: 'elysia_auth'
 
 services:
+# Svelte App (Static Site)
+  svelte:
+    image: svelte
+    build:
+      context: ../svelte-page
+    ports:
+      - "8080:80"
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.svelte.rule=Host(`hello.simmons.studio`)"
+        - "traefik.http.routers.svelte.entrypoints=web"
+        - "traefik.http.services.svelte.loadbalancer.server.port=80"
+        - 'traefik.http.routers.store.tls=true'
+        - 'traefik.http.routers.store.tls.certresolver=leresolver'
   api:
     build:
       context: .
@@ -12,6 +28,7 @@ services:
       - db
       - cache
       - store
+      - mailhog
     environment:
       - NODE_ENV=production
       - MAINTENANCE_MODE=false
@@ -19,6 +36,8 @@ services:
       - HOST=api
       - TZ=Africa/Harare
       - JWT_SECRET=simplytestingelysiasjwtprod
+      - DO_TELEMETRY=false
+      - SMTP_PORT=1025
       - RESEND_API_KEY=re_1234
       - DATABASE_USER=postgres
       - DATABASE_PASSWORD=postgres
@@ -28,19 +47,23 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/authdb?schema=public
       - MINIO_HOST=store
       - MINIO_PORT=9000
-      - MINIO_ROOT_USER=Rosetta
-      - MINIO_ROOT_PASSWORD=Rosetta2022
-      - BUCKET_USERPHOTOS=users
-      - BUCKET_PRODUCTSPHOTOS=products
+      - MINIO_ACCESS_KEY=SxQQJe31nq8ZbXoNukSf # KMFJCQNRB3OEUUN3QMAM 
+      - MINIO_SECRET_KEY=OuVLLHdpUUFEsBoyQDUdYYmASYvhfbcDTypWG8EX # FR5OCNeQerRFfLwkfPvhdemHg4sJAndiowPZw1mZ 
+      - BUCKET_USERS=hello-users
+      - BUCKET_PRODUCTS=hello-products
+      - BUCKET_PHOTOS=hello-photos
+      - BUCKET_FILES=hello-files
       - IMAGE_QUALITY=78
       - THUMBNAIL_QUALITY=48
+      - BLUR_AMOUNT=3
       - REDIS_HOST=cache
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
     #command: "/bin/sh -c 'sleep 10 && bun prisma:seed'"
-    command: "/bin/sh -c 'bunx prisma migrate deploy'"
+    #command: "/bin/sh -c 'bunx prisma migrate deploy'"
     volumes:
       - api_migration_one:/usr/src/app/prisma/migrations/0_init
+      - logs_storage:/usr/src/app/logs
+    entrypoint: ["/usr/src/app/entrypoint.sh"]  # ✅ entrypoint here
     networks:
       default:
         aliases:
@@ -58,7 +81,7 @@ services:
         - 'traefik.http.routers.api.tls.certresolver=leresolver'
 
   db:
-    image: postgres:16.3-bullseye
+    image: postgres:17.2-bullseye
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -81,7 +104,7 @@ services:
       - api_migration_one:/docker-entrypoint-initdb.d:ro  # Mount SQL migrations directory as Read-only
 
   store:
-    image: minio/minio:RELEASE.2024-06-11T03-13-30Z
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
     restart: always
     ports:
       - "9000:9000"
@@ -142,12 +165,11 @@ services:
       - "6379:6379"
     volumes:
       - cache_data:/data
-      - /path/to/local/redis.conf:/usr/local/etc/redis/redis.conf
+      #- /path/to/local/redis.conf:/usr/local/etc/redis/redis.conf
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_PASSWORD=eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
-      - REDIS_PORT=6379
-      - REDIS_DATABASES=8
+      - REDIS_DATABASES=3
     networks:
       default:
         aliases:
@@ -158,18 +180,128 @@ services:
       labels:
         - 'traefik.enable=true'
         - 'traefik.http.routers.cache.rule=Host(`cache.hello.simmons.studio`)'
-        - 'traefik.http.services.api.loadbalancer.server.port=6379'
+        - 'traefik.http.services.cache.loadbalancer.server.port=6379'
         - 'traefik.http.routers.cache.entrypoints=websecure'
         - 'traefik.http.routers.cache.tls=true'
         - 'traefik.http.routers.cache.tls.certresolver=leresolver'
   redis_insight:
-    image: redislabs/redisinsight:2.54.0
+    image: redis/redisinsight:2.66.0-arm64
     container_name: redis_insight
     restart: always
     ports:
-      - 8001:8001
+      #- 8001:8001
+      - 5540:5540
     volumes:
-      - redis_insight_volume_data:/db
+      - redis_insight_volume_data:/data
+    networks:
+      default:
+        aliases:
+          - redis_insight
+    deploy:
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.redis_insight.rule=Host(`insight.hello.simmons.studio`)'
+        - 'traefik.http.services.redis_insight.loadbalancer.server.port=5540'
+        - 'traefik.http.routers.redis_insight.entrypoints=websecure'
+        - 'traefik.http.routers.redis_insight.tls=true'
+        - 'traefik.http.routers.redis_insight.tls.certresolver=leresolver'
+  
+  mailpit:
+    image: axllent/mailpit:v1.22.0
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - 1025:1025  # SMTP server port
+      - 8025:8025  # MailHog web UI port
+    environment:
+      TZ: Africa/Harare
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks:
+      default:
+        aliases:
+          - mailpit
+    volumes:
+      - mailpit_data:/data
+    deploy:
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.mailpit.rule=Host(`mail.hello.simmons.studio`)'
+        - 'traefik.http.services.mailpit.loadbalancer.server.port=8025'
+        - 'traefik.http.routers.mailpit.entrypoints=websecure'
+        - 'traefik.http.routers.mailpit.tls=true'
+        - 'traefik.http.routers.mailpit.tls.certresolver=leresolver'
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d' # Retain data for 30 days
+    networks:
+      default:
+        aliases:
+          - prometheus
+    deploy:
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.prometheus.rule=Host(`metrics.hello.simmons.studio`)'
+        - 'traefik.http.services.prometheus.loadbalancer.server.port=9090'
+        - 'traefik.http.routers.prometheus.entrypoints=websecure'
+        - 'traefik.http.routers.prometheus.tls=true'
+        - 'traefik.http.routers.prometheus.tls.certresolver=leresolver'
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    networks:
+      default:
+        aliases:
+          - grafana
+    deploy:
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.grafana.rule=Host(`grafana.hello.simmons.studio`)'
+        - 'traefik.http.services.grafana.loadbalancer.server.port=3000'
+        - 'traefik.http.routers.grafana.entrypoints=websecure'
+        - 'traefik.http.routers.grafana.tls=true'
+        - 'traefik.http.routers.grafana.tls.certresolver=leresolver'
+  
+  loki:
+    image: grafana/loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+    networks:
+      default:
+        aliases:
+          - loki
+    deploy:
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.loki.rule=Host(`logs.hello.simmons.studio`)'
+        - 'traefik.http.services.loki.loadbalancer.server.port=3100'
+        - 'traefik.http.routers.loki.entrypoints=websecure'
+        - 'traefik.http.routers.loki.tls=true'
+        - 'traefik.http.routers.loki.tls.certresolver=leresolver'
+
 
 # networks:
 #   api_net:
@@ -180,8 +312,12 @@ services:
 
 volumes:
   api_migration_one:
+  logs_storage:
   pgdata:
   minio_data:
   pgadmin_data:
   cache_data:
   redis_insight_volume_data:
+  mailpit_data:
+  prometheus-data:
+  grafana-storage:

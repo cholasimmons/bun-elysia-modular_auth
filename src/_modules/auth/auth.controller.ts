@@ -1,33 +1,29 @@
 import { githubAuth, googleAuth, lucia } from "~config/lucia";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db } from "~config/prisma";
-import { generateId, generateIdFromEntropySize, Session } from "lucia";
+import { generateId, generateIdFromEntropySize } from "lucia";
 import { encodeHex } from "oslo/encoding";
 import { sha256 } from "oslo/crypto";
 import { isWithinExpirationDate } from "oslo";
-import AuthService from "./auth.service";
+import { AuthService } from "./auth.service";
 import { Role, User } from "@prisma/client";
-import consts from "~config/consts";
+import { constants, RedisEvents, RedisKeys } from "~config/constants";
 import { GitHubUserResult, GoogleUserResult, OAuth2Providers } from "./auth.models";
 import { generateCodeVerifier, generateState, OAuth2RequestError } from "arctic";
 import { parseCookies, serializeCookie } from "oslo/cookie";
-import { splitWords, usernameFromEmail } from "~utils/utilities";
+import { splitWords } from "~utils/utilities";
 import { blacklistToken, redisMessagingService, redisSet } from "~config/redis";
 import { UsersService } from "~modules/users";
-import { AuthenticationError, ConflictError, NotFoundError } from "src/_exceptions/custom_errors";
+import { AuthenticationError, ConflictError, NotFoundError } from "~exceptions/custom_errors";
 import { PrismaUserWithProfile, SafeUser } from "~modules/users/users.model";
-import { emailQueue, queueOptions } from "src/_queues/queues";
 
 export class AuthController {
-    // private authService: AuthService;
-    private userService: UsersService;
-    private authService: AuthService;
-    url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${consts.api.versionPrefix}${consts.api.version}`;
+    url = `${Bun.env.NODE_ENV === 'production' ? 'https' : 'http'}://${Bun.env.HOST ?? '127.0.0.1'}:${Bun.env.PORT ?? 3000}${ constants.api.versionPrefix}${constants.api.version}`;
 
-    constructor() {
-        this.authService = AuthService.instance;
-        this.userService = UsersService.instance;
-    }
+    constructor(
+        private userService: UsersService,
+        private authService: AuthService        
+    ) { }
 
     root({ cookie }: any):string{
         // console.log('cookie: ',cookie);
@@ -79,7 +75,7 @@ export class AuthController {
             }
 
             const sessions = await lucia.getUserSessions(userExists.id);
-            if(sessions && sessions.length > consts.auth.maxSessions){
+            if(sessions && sessions.length > constants.auth.maxSessions){
                 console.log(`User has ${sessions.length} sessions`);
                 const tempSessId = sessions[sessions.length-1].id;
 
@@ -102,15 +98,14 @@ export class AuthController {
                 sessions: sessions.length
             }
 
-            // Publish event that a User successfully logged in (disabled)
-            // redisMessagingService.publish('user', {
-            //     action: "user:login",
-            //     user: safeUser
-            // });
+            // Event: Publish event that a User successfully logged in
+            redisMessagingService.publish(RedisEvents.USER, {
+                action: RedisEvents.USER_LOGIN,
+                user: safeUser
+            });
             
-
             // RAW redis function
-            await redisSet(`user:${userExists.id}`, safeUser, 5);
+            await redisSet(RedisKeys.USER(userExists.id), safeUser, 5);
 
             const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, userExists, headers, rememberme);
             if(authMethod === 'JWT'){
@@ -119,8 +114,6 @@ export class AuthController {
                 set.headers["Set-Cookie"] = tokenOrCookie.serialize();
             }
 
-            // BullMQ event queue
-            emailQueue.add('user:login', safeUser, queueOptions());
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: authMethod === 'Cookie' ? sanitizedUser : authMethod === 'JWT' ? {token: tokenOrCookie, user: sanitizedUser} : null, message: 'Successfully logged in' };
@@ -209,14 +202,11 @@ export class AuthController {
 
             const safeUser: SafeUser = this.userService.sanitizeUserObject(newUser);
 
-            // Redis Pub/Sub (Disabled)
-            // redisMessagingService.publish('user', {
-            //     action: "user:register",
-            //     user: safeUser
-            // });
-
-            // BullMQ event queue
-            emailQueue.add('user:create', safeUser, queueOptions(5, 10, 1));
+            // Event
+            redisMessagingService.publish(RedisEvents.USER, {
+                action: RedisEvents.USER_REGISTER,
+                user: safeUser
+            });
 
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return {
@@ -290,8 +280,8 @@ export class AuthController {
                 return { message: 'No session or token present' };
             }
 
-            // BullMQ event queue
-            emailQueue.add('user:logout', user.id);
+            // Event
+            redisMessagingService.publish(RedisEvents.USER_LOGOUT, null);
     
             // Set the response status
             set.status = HttpStatusEnum.HTTP_200_OK;
@@ -614,7 +604,7 @@ export class AuthController {
                 const sessionCookie = lucia.createSessionCookie(session.id);
                 set.status = HttpStatusEnum.HTTP_302_FOUND;
                 set.headers["Set-Cookie"] = sessionCookie.serialize();
-                set.redirect = `${consts.api.versionPrefix}${consts.api.version}/`;
+                set.redirect = `${constants.api.versionPrefix}${constants.api.version}/`;
                 return { message: `Logged back in using ${OAuth2Providers.Google}` }
             }
 
@@ -762,7 +752,7 @@ export class AuthController {
                 const sessionCookie = lucia.createSessionCookie(session.id);
                 set.status = HttpStatusEnum.HTTP_302_FOUND;
                 set.headers["Set-Cookie"] = sessionCookie.serialize();
-                set.redirect = `${consts.api.versionPrefix}${consts.api.version}/`;
+                set.redirect = `${constants.api.versionPrefix}${constants.api.version}/`;
                 return { message: 'Logged back in using Github' }
             }
 

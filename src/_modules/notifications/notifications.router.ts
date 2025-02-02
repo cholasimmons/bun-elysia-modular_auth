@@ -3,7 +3,7 @@ import { checkAuth, checkForProfile, checkIsAdmin, checkIsStaff } from "~middlew
 import { NotificationController, NotificationService } from ".";
 import { NotificationQueriesDTO, CreateNotificationDTO, NotificationResponseDTO } from "./notifications.model";
 import { swaggerDetails } from "~utils/response_helper";
-import consts from "~config/consts";
+import { constants } from "~config/constants";
 
 const controller = new NotificationController();
 
@@ -83,6 +83,7 @@ export const NotificationRouter = new Elysia({ prefix: '/notifications',
         }
     })
 
+    .get('/', ()=>"Notifications OK")
 
 
     /* POST */

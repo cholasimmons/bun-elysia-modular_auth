@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [0.4.5] - 26-01-2025
+## [0.4.5] - 03-02-2025
 
 ### Added
 
@@ -13,6 +13,12 @@
 - Notifications Module & schema
 - `ConnectionsManager` to handle all web socket connectivity (under Notifications Module)
 - `onStart()` lifecycle hook, loads all websocket connection ID's from database to cache
+- [Prometheus](https://prometheus.io/) and [Grafana](https://grafana.com/grafana/) to test metrics (including `prometheus.yml` in the root)
+- [Loki](https://grafana.com/oss/loki/) for logging
+- `@bogeychan/elysia-logger` returned to stream and print logs to [Loki](https://grafana.com/oss/loki/)
+- `logs` directory to store log text file
+- `RedisEvents` and `RedisKeys` added to constants.ts file to serve as global dictionary for key names
+- `_queue` and `_events` folders created to house their respective services
 
 
 ### Changed
@@ -24,11 +30,16 @@
 - Modified the way `server.ts` is loaded in the main `index.ts`, now using Elysia as a plugin, with "v1" prefix.
 - `_subscriptions` folder changed again, to `_queues_` so as to not confuse it for User Subscriptions or WebSocketSubscriptions.
 - Implemented singleton pattern for ConnectionsManager, NotificationService, UsersService, AuthService
-
+- constants.ts renamed to `constants.ts` for easier understanding for new users
+- Reworked the Job Queue system for better scalability and maintenance
+- Queues Events and Cache now rely on global dictionaries RedisEvents & RedisKeys for unified key naming
 
 ### Updated
 
-- Bun 1.2.0
+- Bun 1.2.2
+- Prisma 6.3.0
+- Minio docker image update to `RELEASE.2025-01-20T14-49-07Z`
+- Postgres docker image, `17.2-bullseye`
 
 
 
@@ -117,7 +128,7 @@
 - Added MinIO for file storage (service must be running to use, just like database service)
 - included `mime` package and `files` module for file related endpoints
 - included `sharp` image processing library for image manipulation, including overlaying of watermarks
-- added `images{}` to the `config/consts.ts` file to manage image resolution and quality, fallbacks are hardcoded incase of missing values (also available in .env file)
+- added `images{}` to the `config/constants.ts` file to manage image resolution and quality, fallbacks are hardcoded incase of missing values (also available in .env file)
 - Included Redis cache for quicker retrieval of commonly used data
 - deviceIdentity now part of login process and sessions
 - Session now tracks deviceIdentity (hashed) and IP address of User

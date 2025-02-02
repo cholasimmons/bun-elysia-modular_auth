@@ -3,13 +3,11 @@ import { Lucia, TimeSpan } from "lucia";
 import { adapter } from "./prisma";
 import { Apple, Facebook, GitHub, Google, MicrosoftEntraId, Spotify, Twitter } from "arctic";
 import { Role } from "@prisma/client";
-import consts from "./consts";
-
 
 
 export const lucia = new Lucia(adapter, {
     sessionCookie: {
-        name:  'auth_cookie', // consts.auth.name,
+        name:  'auth_cookie', // constants.auth.name,
         expires: true, // session cookies have very long lifespan (2 years)
         attributes: {
             secure: Bun.env.NODE_ENV === "production",

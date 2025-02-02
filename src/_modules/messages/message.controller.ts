@@ -5,6 +5,8 @@ import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError, PrismaC
 import { Coupon, Message } from "@prisma/client";
 import { redisGet, redisMessagingService, redisSet } from "~config/redis";
 import { ConflictError, NotFoundError, RateLimitError } from "src/_exceptions/custom_errors";
+import { emailQueue } from "~queues/queues";
+import { RedisEvents, RedisKeys } from "~config/constants";
 
 export class MessageController {
     private messageSvc: MessageService;
@@ -46,7 +48,7 @@ export class MessageController {
     sendMessage = async({ set, user: { id }, query, body }:any) => {
         // const { senderId, recipientId, title, message, priority, deliveryMethods } = body;
 
-        const cacheKey = `message-cooldown:${id}`; // Unique key for the sender
+        const cacheKey = RedisKeys.COOLDOWN(id); // Unique key for the sender
 
         try {
             const isCooldown = await redisGet(cacheKey);
@@ -72,8 +74,8 @@ export class MessageController {
             const message: Message|null = await this.messageSvc.createAndSendMessage(body, id);
 
             // Publish the message event
-            redisMessagingService.publish('message-events', {
-                action: 'sent',
+            redisMessagingService.publish(RedisEvents.MESSAGE, {
+                action: RedisEvents.MESSAGE_SENT,
                 message
             });
 
@@ -82,8 +84,7 @@ export class MessageController {
 
             // Cache the message hash for a longer period to prevent duplicates
             await redisSet(messageHash, true, 60); // 1 hour or as needed
-
-            
+           
 
             set.status = HttpStatusEnum.HTTP_200_OK;
             return { data: message, message: `Successfully sent Message (${message.deliveryMethods})` };
@@ -97,15 +98,16 @@ export class MessageController {
         }
     }
 
-    sendMessageSafely = async({ set, user: { id }, query, body }:any) => {
+    sendMessageSafely = async({ set, user, query, body }:any) => {
+        const userId = user.id ?? '1234';
 
         try {
             // Create and send the message
-            const message: Message|null = await this.messageSvc.createAndSendMessageSafely(body, id);
+            const message: Message|null = await this.messageSvc.createAndSendMessageSafely(body, userId);
 
             // Publish the message event
-            redisMessagingService.publish('message-events', {
-                action: 'sent',
+            redisMessagingService.publish(RedisEvents.MESSAGE, {
+                action: RedisEvents.MESSAGE_SENT,
                 message
             });
 

@@ -6,18 +6,16 @@ import { db, prismaSearch } from "~config/prisma";
 import { minioClient } from "~config/minioClient";
 import { FileStatus, FileUpload } from "@prisma/client";
 import { Context } from "elysia";
-import { fileQueue, queueOptions } from "src/_queues/queues";
+import { fileQueue, queueOptions } from "~queues/queues";
 
 const BUCKET_USERS: string = Bun.env.BUCKET_USERS || 'hello-users';
 const BUCKET_PRODUCTS: string = Bun.env.BUCKET_PRODUCTS || 'hello-products';
 const BUCKET_PHOTOS: string = Bun.env.BUCKET_PHOTOS || 'hello-photos';
 
 export class FilesController {
-    private filesService: FilesService;
-    
 
-    constructor(){
-        this.filesService = new FilesService();
+    constructor(private filesService: FilesService){
+        // this.filesService = new FilesService();
     }
 
     getAllFiles = async ({ set }:any) => {

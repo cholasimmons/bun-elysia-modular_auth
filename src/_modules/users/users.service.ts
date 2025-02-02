@@ -1,19 +1,20 @@
-import { Prisma, Profile, Role, SubscriptionType, User  } from "@prisma/client";
+import { Profile, Role, SubscriptionType, User  } from "@prisma/client";
 import { db } from "~config/prisma";
 import { Resend } from "resend";
-import consts from "~config/consts";
+import { constants } from "~config/constants";
 import { redisGet, redisSet } from "~config/redis";
-import { PartialUserWithProfile, PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
-import { InternalServerError, NotFoundError } from "src/_exceptions/custom_errors";
+import { PrismaUserWithOptionalProfile, PrismaUserWithProfile, ProfileWithPartialUser, ProfileWithSafeUserModel, SafeUser } from "./users.model";
+import { InternalServerError, NotFoundError } from "~exceptions/custom_errors";
 
 
 export class UsersService {
     private static _instance: UsersService;
 
-    private resend = new Resend(Bun.env.RESEND_API_KEY);
+    private resend: Resend;
 
-    constructor(){
-        console.info("UsersService is GO");
+    private constructor(){
+        this.resend = new Resend(Bun.env.RESEND_API_KEY);
+        console.info("|| UsersService is GO");
     }
 
     public static get instance(): UsersService{
@@ -322,9 +323,9 @@ export class UsersService {
         // TODO: Implement timeout to limit the resends
 
         return await this.resend.emails.send({
-                from: consts.server.email, // 'onboarding@resend.dev',
+                from: constants.server.email, // 'onboarding@resend.dev',
                 to: userProfile?.email!,
-                subject: subject ?? `System message | ${consts.server.name}`,
+                subject: subject ?? `System message | ${constants.server.name}`,
                 html: message,
             });
     }

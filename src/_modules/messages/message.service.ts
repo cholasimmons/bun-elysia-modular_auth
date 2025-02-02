@@ -3,12 +3,13 @@ import { Message } from "@prisma/client";
 import { ICreateMessage } from "./message.model";
 import { redisGet, redisSet } from "~config/redis";
 import { ConflictError, RateLimitError } from "~exceptions/custom_errors";
+import { email } from "./smtp";
 
 export class MessageService {
     private static _instance: MessageService;
 
     constructor(){
-        console.info("MessageService is GO");
+        console.info("|| MessageService is GO");
     }
 
     public static get instance(): MessageService {
@@ -62,7 +63,8 @@ export class MessageService {
 
             // Optionally, generate a hash of the message to detect duplicates
             const hasher = new Bun.CryptoHasher("sha256");
-            const messageHash = `message-hash:${userId}:${hasher.update(JSON.stringify(body), "hex").digest()}`;
+            const stringMessage = JSON.stringify(message);
+            const messageHash = `message-hash:${userId}:${hasher.update(stringMessage, "utf-8").digest()}`;
             
             // Search cache for the exact message
             const isDuplicate = await redisGet(messageHash);
@@ -87,7 +89,7 @@ export class MessageService {
             await redisSet(cacheKey, true, 0.25);
 
             // Cache the message hash for a longer period to prevent duplicates
-            await redisSet(messageHash, true, 60); // 1 hour or as needed
+            await redisSet(messageHash, true, 10); // 1 hour or as needed
             
             return payload;
         } catch (error) {

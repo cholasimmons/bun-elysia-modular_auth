@@ -1,9 +1,7 @@
-import { UsersService } from "~modules/users";
 import { HttpStatusEnum } from "elysia-http-status-code/status";
 import { db, prismaSearch } from "~config/prisma";
-import { AutoEnrol, FileStatus, Profile, Role, SubscriptionType, User } from "@prisma/client";
-import { AuthService, FilesService } from "..";
-import { lucia } from "~config/lucia";
+import { AutoEnrol, FileStatus, Profile, Role, User } from "@prisma/client";
+import { FilesService, UsersService } from "../";
 import { formatDate, usernameFromEmail } from "~utils/utilities";
 import { BucketType, IImageUpload } from "~modules/files/files.model";
 import { redisGet, redisMessagingService, redisSet } from "~config/redis";
@@ -13,14 +11,13 @@ import { AuthorizationError, ConflictError, InternalServerError, NotFoundError }
 
 
 export class UsersController {
-    private authService: AuthService;
-    private fileService: FilesService;
-    private userSvc: UsersService;
+    // private authService = AuthService.instance;
 
-    constructor() {
-        this.authService = AuthService.instance;
-        this.fileService = new FilesService();
-        this.userSvc = UsersService.instance;
+    constructor(private fileService: FilesService, private userSvc: UsersService) {
+        // this.fileService = new FilesService();
+        // this.authService = AuthService.instance;
+        // this.userSvc = UsersService.instance;
+        console.info(":: UsersController is GO");
     }
 
     /* GET */
@@ -346,18 +343,18 @@ export class UsersController {
             // Payment could be an option or simply a document verification
 
             redisMessagingService.publish('user-events', {
-                action: "user_profile-created",
+                action: "user:profile-created",
                 user: newProfile
             });
 
             
             // Generate access token using new profile details
-            const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, newProfile.user!, headers, undefined);
-            if(authMethod === 'JWT'){
-                set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
-            } else if (authMethod === 'Cookie'){
-                set.headers["Set-Cookie"] = tokenOrCookie.serialize();
-            }
+            // const tokenOrCookie = await this.authService.createDynamicSession(authMethod, jwt, newProfile.user!, headers, undefined);
+            // if(authMethod === 'JWT'){
+            //     set.headers["Authorization"] = `Bearer ${tokenOrCookie}`;
+            // } else if (authMethod === 'Cookie'){
+            //     set.headers["Set-Cookie"] = tokenOrCookie.serialize();
+            // }
             
             set.status = HttpStatusEnum.HTTP_201_CREATED;
             return { data: newProfile, message: `User Profile successfully created. ${!!uploadedImage ? '' : '(No image)'}` }

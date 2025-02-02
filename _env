@@ -6,6 +6,7 @@ HOST=localhost
 JWT_SECRET=asecurepassw0rd
 TZ=Africa/Harare # For Lusaka too
 DO_TELEMETRY=false
+SMTP_PORT=25
 
 # This was inserted by `prisma init`:
 # Environment variables declared in this file are automatically made available to Prisma.

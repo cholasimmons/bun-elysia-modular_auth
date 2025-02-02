@@ -5,8 +5,11 @@ import { LoginUserDTO, RegisterUserDTO, changePasswordBody } from "./auth.models
 import { checkAuth } from "~middleware/authChecks";
 import { oauth2 } from "elysia-oauth2";
 import { swaggerDetails } from "~utils/response_helper";
+import { UsersService } from "~modules/users";
 
-const authController = new AuthController();
+const authService = AuthService.instance;
+const userService = new UsersService();
+const authController = new AuthController(userService, authService);
 
 export const AuthHandler = new Elysia({
     prefix: '/auth',
@@ -76,6 +79,8 @@ export const AuthHandler = new Elysia({
         detail: swaggerDetails('Get All User Sessions', 'Fetches all sessions for current User'),
         beforeHandle: [checkAuth]
     })
+
+    .get('/health', ()=>"Auth OK")
 
 
     /* POST */

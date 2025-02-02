@@ -98,7 +98,7 @@ model CouponLog {
   maxUses         Int      @map("max_uses")
   usedByProfileId String   @map("user_profile_id")
   usedByNames     String   @map("user_names")
-  usedFor         CaseType @map("used_for")
+  usedFor         String @map("used_for")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([code, timestamp(sort: Desc), createdAt(sort: Desc)])

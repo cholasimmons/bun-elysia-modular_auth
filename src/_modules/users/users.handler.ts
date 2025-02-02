@@ -1,12 +1,14 @@
 import Elysia, { t } from "elysia";
 import { UsersController, UsersService } from ".";
-import { AuthService } from "../auth";
 import { checkAuth, checkEmailVerified, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
 import { AutoUserBodyDTO, AutoUserResponseDTO, UserResponseDTO, profileQueriesDTO, ProfileResponseDTO, ProfileBodyDTO, updateProfileBodyDTO, userQueriesDTO } from "./users.model";
 import { swaggerDetails } from "~utils/response_helper";
 import { paginationOptions } from "~modules/root/root.models";
+import { FilesService } from "../files";
 
-const users = new UsersController();
+const fileSvc = new FilesService();
+const userSvc = new UsersService();
+const users = new UsersController(fileSvc, userSvc);
 
 export const UsersHandler = new Elysia({
     prefix: '/users',
@@ -145,6 +147,8 @@ export const UsersHandler = new Elysia({
         },
         detail: swaggerDetails('Get User Profile Status by ID [Staff]', 'Fetches User\'s Profile status by UserId param [Staff]')
     })
+
+    .get('/health', ()=>"Users OK")
 
 
     /* POST */

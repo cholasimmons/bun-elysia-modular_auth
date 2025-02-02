@@ -1,6 +1,6 @@
 import { WSConnections } from "@prisma/client";
 import { ElysiaWS } from "elysia/dist/ws";
-import consts from "~config/consts";
+import { constants } from "~config/constants";
 import { db } from "~config/prisma";
 import { redisDel, redisGet, redisGetAll, redisKeys, redisSet } from "~config/redis";
 
@@ -13,8 +13,8 @@ export class ConnectionManager {
 
     private redisKeyPrefix = "userConnections";
 
-    constructor() {
-        console.info("Connection Manager is GO");
+    private constructor() {
+        console.info("|| WebSocket Manager is GO");
         
     }
 
@@ -41,7 +41,7 @@ export class ConnectionManager {
 
         console.log("Added connection of User",userId, connId);
         
-        ws.send({ message: `Welcome to ${consts.server.name} ${userId}`, data: connId})
+        ws.send({ message: `Welcome to ${constants.server.name} ${userId}`, data: connId})
     }
 
     async removeConnection(connectionId: string): Promise<void> {

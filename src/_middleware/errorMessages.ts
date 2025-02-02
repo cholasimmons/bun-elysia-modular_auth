@@ -124,8 +124,12 @@ function handleServiceUnavailableError(error: CustomError, set: any) {
 
   function handleConflictError(error:CustomError, set: any) {
     const { status, message, name, cause} = error;
-    set.status = HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
-    return { code: status ?? set.status, message: message ?? 'A conflict was detected', note: cause ?? name };
+    set.status = status ?? HttpStatusEnum.HTTP_500_INTERNAL_SERVER_ERROR;
+    return {
+      code: set.status,
+      message: message ?? 'A conflict was detected',
+      error: cause ?? name
+    };
   }
 
   function handleAuthorizationError(error: CustomError, set: any){

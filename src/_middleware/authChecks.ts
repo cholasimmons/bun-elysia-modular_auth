@@ -1,6 +1,6 @@
 import { Role } from "@prisma/client";
 import { AuthenticationError, AuthorizationError, NotFoundError } from "~exceptions/custom_errors";
-import consts from "~config/consts";
+import { constants } from "~config/constants";
 import { lucia } from "~config/lucia";
 import { db } from "~config/prisma";
 
@@ -8,7 +8,7 @@ import { db } from "~config/prisma";
 // Checks for correct Headers
 export const headerCheck = ({ request:{ headers }, authMethod }:any) => {
   if (!authMethod) {
-    const method: string|null = headers.get(consts.auth.method ?? "X-Client-Type");
+    const method: string|null = headers.get(constants.auth.method ?? "X-Client-Type");
 
     if(!method){
       throw new AuthenticationError("Authentication mode not specified");

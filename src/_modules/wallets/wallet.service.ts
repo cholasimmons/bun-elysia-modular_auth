@@ -1,23 +1,25 @@
 import { db } from "~config/prisma";
 // import type { IWallet } from "~modules/wallet";
-import constants from "~config/consts";
+import { constants } from "~config/constants";
 import { Coupon, Currency, DiscountType, Prisma, TransactionStatus, Wallet, WalletTransaction } from "@prisma/client";
-import { NotFoundError, ValidationError } from "elysia";
-import { WalletWithOptionalChildren } from "./wallet.model";
+import { NotFoundError } from "elysia";
 
 export class WalletService {
-    private static instance: WalletService;
+    private static _instance: WalletService;
+
+    private constructor(){
+        console.info("|| WalletService is GO");
+    }
 
     default(){
         return 'Wallet Service';
     }
 
-    public static getInstance(): WalletService {
-        if (!WalletService.instance) {
-            WalletService.instance = new WalletService();
+    public static get instance(): WalletService {
+        if (!WalletService._instance) {
+            WalletService._instance = new WalletService();
         }
-        
-        return WalletService.instance;
+        return WalletService._instance;
     }
 
     // Check balance of wallet by User Profile ID

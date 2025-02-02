@@ -75,6 +75,8 @@ export const WalletsRouter = new Elysia({ prefix: '/wallet',
         }
     })
 
+    .get('/', ()=>"Wallet OK")
+
 
     /* POST */
 

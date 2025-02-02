@@ -1,12 +1,13 @@
 import Elysia, { t } from "elysia";
 import { checkAuth, checkForProfile, checkIsAdmin, checkIsStaff } from "~middleware/authChecks";
-import { FileBodyDTO, FilesController } from '.';
+import { FileBodyDTO, FilesController, FilesService } from '.';
 import { swaggerDetails } from "~utils/response_helper";
 import { paginationOptions } from "~modules/root/root.models";
 import { ImageBodyDTO } from ".";
 import { BucketType, FilesBodyDTO, ImagesBodyDTO } from "./files.model";
 
-const files = new FilesController();
+const filesService = new FilesService();
+const files = new FilesController(filesService);
 
 export const FilesHandler = new Elysia({
     prefix: '/files',
@@ -99,7 +100,7 @@ export const FilesHandler = new Elysia({
         detail: swaggerDetails('Check Bucket | create')
     })
 
-    
+    .get('/', ()=>"Files OK")
 
 
     /* POST */

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import consts from '~config/consts';
+import {constants} from '~config/constants';
 
 
 async function requestLogger({request, code, set, user}: any) {
@@ -42,13 +42,13 @@ function bootLogger({ hostname, server }:any) {
     
   if (Bun.env.NODE_ENV === 'development') {
     console.log(
-      `💻 ${time}: ${chalk.yellow(`${consts.server.name} Dev Server`)} running on`,
+      `💻 ${time}: ${chalk.yellow(`${constants.server.name} Dev Server`)} running on`,
       chalk.blueBright((hostname||'local')+':') +
         chalk.greenBright(Bun.env.PORT)
     );
   } else if (Bun.env.NODE_ENV === 'production') {
     console.log(
-      `🖥️ ${time}: ${chalk.greenBright(`${consts.server.name} Server`)} running.`,
+      `🖥️ ${time}: ${chalk.greenBright(`${constants.server.name} Server`)} running.`,
       chalk.blueBright((hostname)+':') +
         chalk.greenBright(Bun.env.PORT || 3000)
     );

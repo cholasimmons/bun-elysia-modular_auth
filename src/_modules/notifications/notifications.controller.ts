@@ -1,13 +1,11 @@
 import { NotificationService } from ".";
-import {  WSConnections } from "@prisma/client";
 import { ConnectionManager } from "./connectionsManager";
 import { ElysiaWS } from "elysia/dist/ws";
-import consts from "~config/consts";
 
 export class NotificationController {
     private notificationService = NotificationService.instance;
     private manager = ConnectionManager.instance;
-    // private usersService = new UsersService();
+    // private usersService = new UsersService.instance;
 
     async handleWebSocketConnection(ws:ElysiaWS, userId: string) {
         try {

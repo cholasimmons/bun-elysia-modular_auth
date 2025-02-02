@@ -8,22 +8,22 @@ import { FilesHandler } from "~modules/files";
 import { WalletsRouter } from "~modules/wallets";
 import { MessageRouter } from "~modules/messages";
 import { CouponsRouter } from "~modules/coupons";
-import { initializeEventListeners } from "./_queues/events";
+import { initializeEventListeners } from "~events/events";
 import { NotificationRouter } from "~modules/notifications";
-import consts from "~config/consts";
+import {constants} from "~config/constants";
+import swagger from "@elysiajs/swagger";
 
 
 // ROUTES
-export const v1 = new Elysia({
-  prefix: `/v${consts.api.version}`,
+export const server_v1 = new Elysia({
+  prefix: `/v${constants.api.version}`,
 })
 
   // Initialize Event listeners (Redis Pub/Sub) (Disabled)
-  // initializeEventListeners();
-  
+  initializeEventListeners();
 
   // files
-  .use(FilesHandler)
+  server_v1.use(FilesHandler)
 
   // root
   .use(RootHandler)
@@ -44,7 +44,25 @@ export const v1 = new Elysia({
   .use(MessageRouter)
 
   // push notifications
-  .use(NotificationRouter);
+  .use(NotificationRouter)
+  
+  // Swagger
+  .use(swagger({ autoDarkMode: true,
+    documentation: {
+      info: {
+          title: `${constants.server.name}`,
+          version: `${constants.server.version}`,
+          description: `Server API for ${constants.server.name}`,
+          contact: {
+            name: constants.server.author,
+            email: constants.server.email
+          }
+      }
+    },
+    swaggerOptions: {
+      syntaxHighlight: { theme: "monokai" }
+    }
+  }));
 
-  console.debug("Loading Handlers... Done!");
+  console.debug("Loading V1 Server... Done!");
 

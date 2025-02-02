@@ -69,6 +69,8 @@ export const CouponsRouter = new Elysia({ prefix: '/coupons',
         detail: swaggerDetails('Get Coupon by Code [STAFF]', 'Retrieve a specific Coupon by it\'s code.')
     })
 
+    .get('/', ()=>"Coupon OK")
+
 
     /* POST */
 

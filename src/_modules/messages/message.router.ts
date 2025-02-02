@@ -12,7 +12,7 @@ export const MessageRouter = new Elysia({ prefix: '/messages',
     detail: { description:'Messaging System', tags: ['Messages'] }
 })
 
-    .onBeforeHandle([checkAuth, checkForProfile])
+    .onBeforeHandle([checkAuth])
 
     /* GET */
 
@@ -35,11 +35,12 @@ export const MessageRouter = new Elysia({ prefix: '/messages',
         detail: swaggerDetails('Get User\'s Messages [ADMIN|STAFF]', 'Retrieve all of a User\'s Messages by their Profile ID')
     })
 
+    .get('/health', ()=>"Messages OK")
 
     /* POST */
 
 
-    .post('/send', messages.sendMessageSafely, {
+    .post('/send-email', messages.sendMessageSafely, {
         // beforeHandle: [ checkForProfile ],
         body: CreateMessageDTO,
         query: MessageQueriesDTO,

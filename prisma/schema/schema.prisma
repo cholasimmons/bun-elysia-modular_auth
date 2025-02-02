@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["logs", "users", "files", "messages", "notifications", "finance", "cases"]
+  schemas  = ["logs", "users", "files", "messages", "notifications", "finance"]
 }
 
 model OAuth_Account {
@@ -178,18 +178,4 @@ enum SubscriptionType {
   PREMIUM
   ELITE
   @@schema("users")
-}
-
-enum CaseType {
-  USERS
-  PROFILES
-  REALESTATE
-  LISTINGS
-  PAYMENTS
-  SUPPORT_PHONE
-  SUPPORT_TEXT
-  WALLET
-  ISSUES
-  COUPONS
-  @@schema("cases")
 }

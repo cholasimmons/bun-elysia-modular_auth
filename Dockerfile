@@ -1,9 +1,15 @@
 # see all official Bun versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:slim AS base
+FROM oven/bun AS base
 
 
 # Set up application
 WORKDIR /usr/src/app
+
+# Set to true to tell Elysia we are in a Docker system
+ENV DOCKER_ENV=true
+
+# install netcat to detect when services are ready (for entrypoint.sh)
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-traditional
 
 # install dependencies into temp directory (cache and speed for future builds)
 FROM base AS install
@@ -30,6 +36,8 @@ COPY --from=install /temp/dev/prisma prisma
 COPY --from=install /temp/dev/tsconfig.json .
 COPY public public
 COPY src src
+COPY logs logs
+COPY entrypoint.sh .
 
 # [optional] tests & build
 # ENV NODE_ENV=production
@@ -43,12 +51,19 @@ COPY src src
 # COPY --from=prerelease /usr/src/app/ .
 # COPY --from=prerelease /usr/src/app/package.json .
 
+# Ensure logs directory exists
+RUN mkdir -p /logs
+RUN chmod +x entrypoint.sh
+
 # Switch to non-root user for added security
 USER bun
 EXPOSE 3000/tcp
 
 # run the app
-CMD [ "bun", "dev" ]
+# CMD [ "bun", "dev" ]
+
+# execute start script
+ENTRYPOINT [ "./entrypoint.sh" ]
 
 # execute the binary!
 # CMD ["/usr/src/app/app"]

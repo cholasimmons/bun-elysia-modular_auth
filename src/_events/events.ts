@@ -1,15 +1,17 @@
 import { Coupon, Message, Profile, User, WalletTransaction } from "@prisma/client";
-import { emailQueue } from "src/_queues/queues";
+import { emailQueue, queueOptions } from "~queues/queues";
+import { RedisEvents } from "~config/constants";
 import { redisMessagingService } from "~config/redis";
+import { SafeUser } from "~modules/users/users.model";
 
 // System events for testing
 const initializeTestEventListeners = () => {
-    redisMessagingService.subscribe("system-events", (message) => {
+    redisMessagingService.subscribe(RedisEvents.SYSTEM, (message) => {
       const event = JSON.parse(message);
-      // const system = event?.data;
+      const system = event?.data;
   
-      if (event.action === "start") {
-          console.log(`Index page accessed`);
+      if (event.action === RedisEvents.SYSTEM_START) {
+          console.log(`Index page accessed`, system);
       }
     });
 };
@@ -18,33 +20,34 @@ const initializeTestEventListeners = () => {
 const initializeUserEventListeners = () => {
   redisMessagingService.subscribe("user", (message) => {
     const event = JSON.parse(message);
-    const user = event.user as Partial<User | Profile>;
+    const user = event.user as Partial<SafeUser | Profile>;
 
-    if (event.action === "user:register") {
+    if (event.action === RedisEvents.USER_REGISTER) {
         console.debug(`[EVENT] New user registered: ${user.firstname} ${user.lastname}`);
         // Run user registration logic
 
-        emailQueue.add('user:register', user, {
-          attempts: 5, // Retry
-          backoff: { type: "exponential", delay: 1000 } // Exponential backoff
-      });
+        // BullMQ event queue
+        emailQueue.add(event.action, user, queueOptions(5, 10, 1));
     }
   
-    if (event.action === "user:login") {
+    if (event.action === RedisEvents.USER_LOGIN) {
         console.debug(`[EVENT] User logged in: ${user.email}`);
 
-        emailQueue.add('user:login', user, {
-            attempts: 5, // Retry
-            backoff: { type: "exponential", delay: 1000 } // Exponential backoff
-        });
+        // BullMQ job queue
+        emailQueue.add(event.action, user, queueOptions());
     }
 
-    if (event.action === "user:delete") {
+    if (event.action === RedisEvents.USER_LOGOUT) {
+      // BullMQ event queue
+      emailQueue.add(RedisEvents.USER_LOGOUT, null);
+    }
+
+    if (event.action === RedisEvents.USER_DELETE) {
       console.log(`User deleted: ${user.id}`);
       // Run user deletion logic
     }
 
-    if (event.action === "user:new-profile") {
+    if (event.action === RedisEvents.USER_NEW_PROFILE) {
       console.log(`User ${user.firstname} created a profile`);
   }
   });
@@ -53,15 +56,15 @@ const initializeUserEventListeners = () => {
 
 // Wallet module events
 const initializeWalletEventListeners = () => {
-  redisMessagingService.subscribe("wallet-events", (message) => {
+  redisMessagingService.subscribe(RedisEvents.WALLET, (message) => {
     const event = JSON.parse(message);
     const transaction = event.transaction as Partial<WalletTransaction>;
 
-    if (event.action === "paid") {
+    if (event.action === RedisEvents.WALLET_PAID) {
       console.log(`${transaction.payerProfileId} paid ${transaction.payeeProfileId} ${transaction.amount}`);
     }
 
-    if (event.action === "wallet_funded") {
+    if (event.action === RedisEvents.WALLET_FUNDED) {
       console.log(`Wallet funded for user ${event.userId}: ${event.amount}`);
       // Update wallet balance or process transactions
     }
@@ -70,12 +73,12 @@ const initializeWalletEventListeners = () => {
 
 // Coupon module events
 const initializeCouponEventListeners = () => {
-  redisMessagingService.subscribe("coupon-events", (message) => {
+  redisMessagingService.subscribe(RedisEvents.COUPON, (message) => {
     const event = JSON.parse(message);
     const coupon = event.coupon as Partial<Coupon>;
 
     switch (event.action) {
-      case "coupon_used":
+      case RedisEvents.COUPON_USED:
         console.log(`Coupon ${coupon.name} used`);
         break;
     
@@ -88,12 +91,12 @@ const initializeCouponEventListeners = () => {
 
 // Messaging module events
 const initializeMessagingEventListeners = () => {
-  redisMessagingService.subscribe("message-events", (message) => {
+  redisMessagingService.subscribe(RedisEvents.MESSAGE, (message) => {
     const event = JSON.parse(message);
     const msg = event.message as Partial<Message>;
 
     switch (event.action) {
-      case "sent":
+      case RedisEvents.MESSAGE_SENT:
         // Notify recipient
         console.debug(`[Event] New [${msg.deliveryMethods}] message from ${msg.senderId}: ${msg.title}`);
         break;
