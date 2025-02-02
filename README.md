@@ -1,4 +1,4 @@
-# Modular Elysia JS app | Authentication template (Bun runtime)
+# Modular Elysia JS app | Elysia Template (Bun runtime)
 
 ## [Test It Here](https://api.hello.simmons.studio/v1)
 
