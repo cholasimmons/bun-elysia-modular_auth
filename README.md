@@ -2,7 +2,7 @@
 
 2.Unzip in folder.
 
-3.Close Exitlag.
+3.Close Exitlag
 
 4.Run exe.
 
