@@ -1,21 +1,21 @@
 // src/_queues/file.queue.ts
-import { BaseQueue } from './base.queue';
-import { FileUpload } from '@prisma/client';
+import { BaseQueue } from "./base.queue";
+import { FileUpload } from "@generated/prisma/client";
 
 export class FileQueue extends BaseQueue {
   constructor() {
-    super('fileQueue');
+    super("fileQueue");
   }
 
   protected async processJob(job: any) {
     const file: FileUpload | any = job.data;
 
     switch (job.name) {
-      case 'file:upload':
+      case "file:upload":
         console.log("[BullMQ Worker] ", file.name, " file uploaded");
         break;
 
-      case 'file:photo:upload':
+      case "file:photo:upload":
         console.log("[BullMQ Worker] ", file.name, " photo uploaded");
         break;
 

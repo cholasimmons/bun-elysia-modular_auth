@@ -9,290 +9,344 @@ import { Resend } from "resend";
 import { constants } from "~config/constants";
 import { getDeviceIdentifier } from "~utils/utilities";
 
-export class AuthService {
-    private static _instance: AuthService;
-    private resend: Resend;
+let resend: Resend;
 
-    private constructor(){
-        this.resend = new Resend(String(Bun.env.RESEND_API_KEY));
-        console.info("|| AuthService is GO");
+export abstract class AuthService {
+  static url = `${Bun.env.NODE_ENV === "production" ? "https" : "http"}://${Bun.env.HOST ?? "127.0.0.1"}:${Bun.env.PORT ?? 3000}${constants.api.versionPrefix}${constants.api.version}`;
+
+  /**Validate email and password */
+  static validateCredentials(
+    email: string,
+    password: string,
+    confirmPassword?: string,
+  ) {
+    const emailRegex = /^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
+
+    try {
+      // basic check
+      if (
+        (typeof email !== "string" ||
+          email.length < (constants.auth.passwordMinLength ?? 8) ||
+          email.length > 32) &&
+        emailRegex.test(email)
+      ) {
+        throw "Email is not valid";
+      }
+
+      if (
+        typeof password !== "string" ||
+        password.length < (constants.auth.passwordMinLength ?? 8) ||
+        password.length > 32
+      ) {
+        throw "Invalid password format";
+      }
+
+      if (confirmPassword && confirmPassword !== password) {
+        throw "Passwords do not match";
+      }
+    } catch (error) {
+      throw error;
     }
+  }
 
-    public static get instance(): AuthService {
-        if (!AuthService._instance) {
-            AuthService._instance = new AuthService();
-        }
-        
-        return AuthService._instance;
-    }
+  // Encodes user data and creates auth session via Lucia Auth v3
+  static async createLuciaSession(
+    userId: string,
+    headers: Headers,
+    profileId?: string | null,
+    rememberMe?: boolean,
+  ): Promise<Session> {
+    // const userAgent = headers.get('user-agent');
+    // const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
 
+    const ip =
+      headers.get("x-forwarded-for") ||
+      headers.get("remote-addr") ||
+      headers.get("host") ||
+      "Unknown";
+    // const ipHash = Buffer.from(ip).toString('hex');
 
+    const os = headers.get("os") ?? "Unknown";
+    // const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
+    const authMethod: string = headers.get("X-Client-Type") ?? "Unknown";
+    const ipCountry = headers.get("ipCountry") ?? "Unknown";
 
-    /**Validate email and password */
-    public validateCredentials(email:string, password:string, confirmPassword?:string){
-        const emailRegex = /^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/;
+    const deviceIdentifier = getDeviceIdentifier(headers);
 
-        try {
-            // basic check
-            if ( 
-                (typeof email !== "string" || 
-                email.length < (constants.auth.passwordMinLength ?? 8) || email.length > 32) && emailRegex.test(email)
-            ) {
-                throw 'Email is not valid';
-            }
+    return lucia.createSession(userId, {
+      ipCountry: ipCountry,
+      os: os,
+      ip: ip,
+      // host: headers.get('host') ?? 'Unknown',
+      // userAgentHash: userAgentHash,
+      fresh: true,
+      expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
+      activeExpires: Date.now() + 1000 * 60 * (rememberMe ? 60 : 1),
+      deviceIdentifier: deviceIdentifier,
+      authType: authMethod,
+    });
+  }
 
-            if (
-                typeof password !== "string" ||
-                password.length < (constants.auth.passwordMinLength ?? 8) || password.length > 32
-            ) {
-                throw 'Invalid password format';
-            }
+  /** Dynamic Auth Session (JWT|Cookie)
+   * Encodes user data and creates auth session via Lucia Auth v3
+   * */
+  static createDynamicSession = async (
+    authMethod: "JWT" | "Cookie",
+    jwt: any,
+    user: Partial<User>,
+    headers: Headers,
+    rememberMe?: boolean,
+  ) => {
+    console.debug(
+      `[AuthService] ${user.email} attempting log in via ${authMethod}`,
+    );
 
-            if(confirmPassword && confirmPassword !== password){
-                throw 'Passwords do not match';
-            }
-        } catch (error) {
-            throw error;
-        }
-    }
+    try {
+      if (authMethod === "JWT") {
+        const jwtExpiresIn =
+          (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) +
+          "d"; // in days
 
-    // Encodes user data and creates auth session via Lucia Auth v3
-    public async createLuciaSession(userId:string, headers: Headers, profileId?: string|null, rememberMe?:boolean):Promise<Session>{
-        // const userAgent = headers.get('user-agent');
-        // const userAgentHash = (userAgent ? Buffer.from(userAgent).toString('base64') : "Unknown");
+        // Generate access token (JWT) using logged-in user's details
+        const accessToken = await jwt.sign(
+          {
+            id: user.id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            username: user.username,
+            roles: user.roles,
+            emailVerified: user.emailVerified,
+            createdAt: user.createdAt,
+            profileId: user.profileId ?? null,
+          },
+          { expiresIn: jwtExpiresIn },
+        );
 
-        const ip = headers.get('x-forwarded-for') || headers.get('remote-addr') || headers.get('host') || 'Unknown';
-        // const ipHash = Buffer.from(ip).toString('hex');
+        await this.createLuciaSession(
+          user.id!,
+          headers,
+          user?.profileId ?? null,
+          rememberMe,
+        );
 
-        const os = headers.get('os') ?? 'Unknown';
-        // const osHash = (os ? Buffer.from(os).toString('base64') : "Unknown");
-        const authMethod:string = headers.get('X-Client-Type') ?? "Unknown";
-        const ipCountry = headers.get('ipCountry') ?? "Unknown";
-
+        return accessToken;
+      } else if (authMethod === "Cookie") {
+        // Generate a unique identifier for the device (e.g., based on headers or other data)
         const deviceIdentifier = getDeviceIdentifier(headers);
 
-        return lucia.createSession(userId, {
-            ipCountry: ipCountry,
-            os: os,
-            ip: ip,
-            // host: headers.get('host') ?? 'Unknown',
-            // userAgentHash: userAgentHash,
-            fresh: true,
-            expiresAt: createDate(new TimeSpan(1 + (rememberMe ? 6 : 0), "d")),
-            activeExpires: Date.now() + ( 1000 * 60 * (rememberMe ? 60 : 1)),
-            deviceIdentifier: deviceIdentifier,
-            authType: authMethod
-        })
-    }
-
-    /** Dynamic Auth Session (JWT|Cookie)
-     * Encodes user data and creates auth session via Lucia Auth v3
-     * */ 
-    public createDynamicSession = async (
-        authMethod:'JWT'|'Cookie',
-        jwt:any,
-        user:Partial<User>,
-        headers: Headers,
-        rememberMe?:boolean
-    ) => {
-        console.debug(`[AuthService] ${user.email} attempting log in via ${authMethod}`);
-
-        try {
-            if(authMethod === 'JWT'){
-                const jwtExpiresIn = (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) +'d'; // in days
-
-                // Generate access token (JWT) using logged-in user's details
-                const accessToken = await jwt.sign({
-                    id: user.id,
-                    firstname: user.firstname,
-                    lastname: user.lastname,
-                    username: user.username,
-                    roles: user.roles,
-                    emailVerified: user.emailVerified,
-                    createdAt: user.createdAt,
-                    profileId: user.profileId ?? null
-                }, { expiresIn:jwtExpiresIn});
-
-                await this.createLuciaSession(user.id!, headers, user?.profileId ?? null, rememberMe);
-
-                return accessToken;
-            } else if (authMethod === 'Cookie'){
-
-                // Generate a unique identifier for the device (e.g., based on headers or other data)
-                const deviceIdentifier = getDeviceIdentifier(headers);
-
-                const sameDeviceSession = await db.session.findFirst({
-                    where: {
-                        userId: user.id,
-                        deviceIdentifier: deviceIdentifier ?? null,
-                    }
-                });
-    
-                // Invalidate any existing session for this user on the same device
-                if (sameDeviceSession) {
-                    await lucia.invalidateSession(sameDeviceSession.id);
-                    // jwt.sign(null);
-                }
-
-                const {id} = await this.createLuciaSession(user.id!, headers, user?.profileId ?? null, rememberMe);
-                const sessionCookie = lucia.createSessionCookie(id);
-                return sessionCookie;
-            }
-        } catch (error) {
-            console.error(error);
-            
-            throw error;
-        }
-    }
-
-    public async createJWTs(payload: any, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
-        const jwtExpiresIn = (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) +'d'; // in days
-
-        const accessToken = await jwt.sign(payload, { expiresIn:jwtExpiresIn});
-    
-        const refreshToken = await jwt.sign(payload, { expiresIn: '1d' });
-    
-        return { accessToken, refreshToken };
-    }
-
-    public async refreshTokens(refreshToken: string, jwt:any, rememberMe?:boolean): Promise<{ accessToken:string, refreshToken:string }> {
-        // Validate the refresh token
-        const payload = await jwt.verify(refreshToken);
-        if (!payload) throw new Error('Invalid refresh token');
-    
-        // Issue new tokens
-        const newTokens = await this.createJWTs(payload, jwt, rememberMe);
-        return newTokens;
-    }
-
-    public async generateEmailVerificationCode(userId: string, email: string): Promise<string> {
-        console.log(`Generating ${constants.verificationCode.length}-digit Email Verification Code...`);
-        
-        await db.emailVerificationCode.deleteMany({ where: { userId: userId} });
-        const code = generateRandomString(constants.verificationCode.length, alphabet("0-9", "a-z")).toUpperCase();
-        await db.emailVerificationCode.create({
-            data: {
-                userId,
-                email,
-                code,
-                expiresAt: createDate(new TimeSpan(1, "h")) // 1 hour
-            }
+        const sameDeviceSession = await db.session.findFirst({
+          where: {
+            userId: user.id,
+            deviceIdentifier: deviceIdentifier ?? null,
+          },
         });
-        return code;
-    }
 
-    public async sendEmailVerificationCode(email:string, verificationCode:string){
-        console.log(`Sending ${verificationCode} to ${email}`);
-        // TODO: Implement timeout to limit the resends
-
-        try {
-            console.log("IMPLEMENT THIS");
-            
-
-            // await this.resend.emails.send({
-            //     from: 'onboarding@resend.dev',
-            //     to: email,
-            //     subject: 'Your Verification Code',
-            //     html: `<strong>
-            //         ${email}<br>
-            //         ${verificationCode}<br>
-            //         <a href="http://${Bun.env.HOST}:3000/v1/auth/email-verification/${verificationCode}?email=${email}">Verify Account</a>
-            //     </strong>`,
-            // });
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    public async verifyVerificationCode(user: User, _code:string):Promise<boolean>{
-        await db.$connect();
-
-        const databaseCode = await db.emailVerificationCode.findUnique({ where: { userId: user.id }, select: { code: true, expiresAt: true, email: true } })
-        if (!databaseCode || databaseCode.code !== _code) {
-            await db.$disconnect();
-            return false;
+        // Invalidate any existing session for this user on the same device
+        if (sameDeviceSession) {
+          await lucia.invalidateSession(sameDeviceSession.id);
+          // jwt.sign(null);
         }
 
-        await db.emailVerificationCode.deleteMany({ where: { code: _code } });
-        await db.$disconnect();
+        const { id } = await this.createLuciaSession(
+          user.id!,
+          headers,
+          user?.profileId ?? null,
+          rememberMe,
+        );
+        const sessionCookie = lucia.createSessionCookie(id);
+        return sessionCookie;
+      }
+    } catch (error) {
+      console.error(error);
 
-        if (!isWithinExpirationDate(databaseCode.expiresAt)) {
-            return false;
-        }
-        if (databaseCode.email !== user.email) {
-            return false;
-        }
-        return true;
+      throw error;
+    }
+  };
 
+  static async createJWTs(
+    payload: any,
+    jwt: any,
+    rememberMe?: boolean,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const jwtExpiresIn =
+      (rememberMe ? constants.auth.jwtMaxAge : constants.auth.jwtMinAge) + "d"; // in days
+
+    const accessToken = await jwt.sign(payload, { expiresIn: jwtExpiresIn });
+
+    const refreshToken = await jwt.sign(payload, { expiresIn: "1d" });
+
+    return { accessToken, refreshToken };
+  }
+
+  static async refreshTokens(
+    refreshToken: string,
+    jwt: any,
+    rememberMe?: boolean,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    // Validate the refresh token
+    const payload = await jwt.verify(refreshToken);
+    if (!payload) throw new Error("Invalid refresh token");
+
+    // Issue new tokens
+    const newTokens = await this.createJWTs(payload, jwt, rememberMe);
+    return newTokens;
+  }
+
+  static async generateEmailVerificationCode(
+    userId: string,
+    email: string,
+  ): Promise<string> {
+    console.log(
+      `Generating ${constants.verificationCode.length}-digit Email Verification Code...`,
+    );
+
+    await db.emailVerificationCode.deleteMany({ where: { userId: userId } });
+    const code = generateRandomString(
+      constants.verificationCode.length,
+      alphabet("0-9", "a-z"),
+    ).toUpperCase();
+    await db.emailVerificationCode.create({
+      data: {
+        userId,
+        email,
+        code,
+        expiresAt: createDate(new TimeSpan(1, "h")), // 1 hour
+      },
+    });
+    return code;
+  }
+
+  static async sendEmailVerificationCode(
+    email: string,
+    verificationCode: string,
+  ) {
+    console.log(`Sending ${verificationCode} to ${email}`);
+    // TODO: Implement timeout to limit the resends
+
+    try {
+      console.log("IMPLEMENT THIS");
+
+      // await this.resend.emails.send({
+      //     from: 'onboarding@resend.dev',
+      //     to: email,
+      //     subject: 'Your Verification Code',
+      //     html: `<strong>
+      //         ${email}<br>
+      //         ${verificationCode}<br>
+      //         <a href="http://${Bun.env.HOST}:3000/v1/auth/email-verification/${verificationCode}?email=${email}">Verify Account</a>
+      //     </strong>`,
+      // });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async verifyVerificationCode(
+    user: User,
+    _code: string,
+  ): Promise<boolean> {
+    await db.$connect();
+
+    const databaseCode = await db.emailVerificationCode.findUnique({
+      where: { userId: user.id },
+      select: { code: true, expiresAt: true, email: true },
+    });
+    if (!databaseCode || databaseCode.code !== _code) {
+      await db.$disconnect();
+      return false;
     }
 
-    public health(){
-        console.log('Auth Service working ok! HEALTH');
-        
-        return 'Auth Service working ok! HEALTH'
+    await db.emailVerificationCode.deleteMany({ where: { code: _code } });
+    await db.$disconnect();
+
+    if (!isWithinExpirationDate(databaseCode.expiresAt)) {
+      return false;
     }
-
-
-    public async createPasswordResetToken(userId: string): Promise<string> {
-        // optionally invalidate all existing tokens
-        await db.passwordResetToken.deleteMany({ where: { userId: userId } });
-        const tokenId = generateId(40);
-        const tokenHash = encodeHex(await sha256(new TextEncoder().encode(tokenId)));
-        await db.passwordResetToken.create({ data: {
-            tokenHash: tokenHash,
-            userId: userId,
-            expiresAt: createDate(new TimeSpan(30, "m")) // 30 minutes
-        }
-        });
-        return tokenId;
+    if (databaseCode.email !== user.email) {
+      return false;
     }
+    return true;
+  }
 
-    public async sendPasswordResetToken(email:string, verificationLink:string) {
-        console.debug(`Password reset token to be sent to ${email}: ${verificationLink}`);
+  static health() {
+    console.log("Auth Service working ok! HEALTH");
 
-        try {
-            await this.resend.emails.send({
-                from: 'onboarding@resend.dev',
-                to: email,
-                subject: 'Hello User',
-                html: `User email: <strong>${email}</strong><br>
+    return "Auth Service working ok! HEALTH";
+  }
+
+  static async createPasswordResetToken(userId: string): Promise<string> {
+    // optionally invalidate all existing tokens
+    await db.passwordResetToken.deleteMany({ where: { userId: userId } });
+    const tokenId = generateId(40);
+    const tokenHash = encodeHex(
+      await sha256(new TextEncoder().encode(tokenId)),
+    );
+    await db.passwordResetToken.create({
+      data: {
+        tokenHash: tokenHash,
+        userId: userId,
+        expiresAt: createDate(new TimeSpan(30, "m")), // 30 minutes
+      },
+    });
+    return tokenId;
+  }
+
+  static async sendPasswordResetToken(email: string, verificationLink: string) {
+    console.debug(
+      `Password reset token to be sent to ${email}: ${verificationLink}`,
+    );
+
+    try {
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
+        to: email,
+        subject: "Hello User",
+        html: `User email: <strong>${email}</strong><br>
                     <a href="${verificationLink}">Reset your password</a>`,
-            });
-        } catch (error) {
-            console.error(error);
-            
-            throw 'Could not send email'
-        }
+      });
+    } catch (error) {
+      console.error(error);
+
+      throw "Could not send email";
     }
+  }
 
-    public async validateAutoEnrollment(registrationEmail:string): Promise<Partial<AutoEnrol>|null> {
-        console.debug(`validating new registration...`);
+  static async validateAutoEnrollment(
+    registrationEmail: string,
+  ): Promise<Partial<AutoEnrol> | null> {
+    console.debug(`validating new registration...`);
 
-        try {
-            const enroller = await db.autoEnrol.findFirst({
-                where: { email: registrationEmail, isActive: true },
-                select: { email: true, phone: true, names: true, roles: true, supportLevel: true }
-            });
+    try {
+      const enroller = await db.autoEnrol.findFirst({
+        where: { email: registrationEmail, isActive: true },
+        select: {
+          email: true,
+          phone: true,
+          names: true,
+          roles: true,
+          supportLevel: true,
+        },
+      });
 
-            if(enroller){
-                enroller.roles.unshift(Role.GUEST);
-                return enroller;
-            }
+      if (enroller) {
+        enroller.roles.unshift(Role.GUEST);
+        return enroller;
+      }
 
-            return null;
-        } catch (error) {
-            console.error(error);
-            
-            throw 'Could not fetch auto-enrolled items'
-        }
+      return null;
+    } catch (error) {
+      console.error(error);
+
+      throw "Could not fetch auto-enrolled items";
     }
+  }
 
-    public async clearExpiredEmailVerificationCodes(){
-        let oneDayAgo = new Date();
-        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+  static async clearExpiredEmailVerificationCodes() {
+    let oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-        return db.emailVerificationCode.deleteMany({
-            where: { expiresAt: { lte: oneDayAgo } }
-        });
-    }
+    return db.emailVerificationCode.deleteMany({
+      where: { expiresAt: { lte: oneDayAgo } },
+    });
+  }
 }

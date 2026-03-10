@@ -1,6 +1,31 @@
 # Changelog
 
 
+## [0.6.3] - 10-03-2026
+
+### Added
+- `bun add @prisma/adapter-pg pg prismabox` as Prisma now works differently, requiring the use of an adapter, and a reworked schema file that now depends on the new `prisma.config.ts` file.
+- PrismaBox code block now added to `schema.prisma` for auto-generating code
+- `prisma.config.ts` for Prisma's configuration settings
+- Prisma Client now outputted to `"../../src/generated/prisma"` in `prisma/schema.prisma` file
+- New path in `tsconfig.ts` for PrismaBox's `src/generated/*` routes - `@generated`
+
+### Changed
+- `src/_config/prisma.ts` now has a different way of configuring Prisma
+- `adpater` const exported from prisma.ts for Lucia to work is now renamed `luciaAdapter`,
+- ### future releases will do away with lucia and use betterAuth instead
+- Data Models now rely on PrismaBox's [auto generated models](https://elysiajs.com/integrations/prisma)
+
+### Updated
+- Bun 1.3.10
+- Elysia, 1.4.27
+- Prisma 7.4.2
+
+### Removed
+- Bun now ships with it's own Redis client, thus our ioredis becomes irrelevant
+- prisma object from `package.json` as this is now handled by `prisma.config.ts`
+
+
 ## [0.4.5] - 03-02-2025
 
 ### Added

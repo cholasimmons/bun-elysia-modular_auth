@@ -1,0 +1,156 @@
+import { t } from "elysia";
+
+import { __transformDate__ } from "./__transformDate__";
+
+import { __nullable__ } from "./__nullable__";
+
+export const PasswordResetTokenPlain = t.Object(
+  {
+    id: t.Integer(),
+    tokenHash: t.String(),
+    userId: t.String(),
+    expiresAt: t.Date(),
+  },
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenRelations = t.Object(
+  {},
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenPlainInputCreate = t.Object(
+  { tokenHash: t.String(), expiresAt: t.Date() },
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenPlainInputUpdate = t.Object(
+  { tokenHash: t.Optional(t.String()), expiresAt: t.Optional(t.Date()) },
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenRelationsInputCreate = t.Object(
+  {},
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenRelationsInputUpdate = t.Partial(
+  t.Object({}, { additionalProperties: false }),
+);
+
+export const PasswordResetTokenWhere = t.Partial(
+  t.Recursive(
+    (Self) =>
+      t.Object(
+        {
+          AND: t.Union([Self, t.Array(Self, { additionalProperties: false })]),
+          NOT: t.Union([Self, t.Array(Self, { additionalProperties: false })]),
+          OR: t.Array(Self, { additionalProperties: false }),
+          id: t.Integer(),
+          tokenHash: t.String(),
+          userId: t.String(),
+          expiresAt: t.Date(),
+        },
+        { additionalProperties: false },
+      ),
+    { $id: "PasswordResetToken" },
+  ),
+);
+
+export const PasswordResetTokenWhereUnique = t.Recursive(
+  (Self) =>
+    t.Intersect(
+      [
+        t.Partial(
+          t.Object(
+            { id: t.Integer(), tokenHash: t.String() },
+            { additionalProperties: false },
+          ),
+          { additionalProperties: false },
+        ),
+        t.Union(
+          [t.Object({ id: t.Integer() }), t.Object({ tokenHash: t.String() })],
+          { additionalProperties: false },
+        ),
+        t.Partial(
+          t.Object({
+            AND: t.Union([
+              Self,
+              t.Array(Self, { additionalProperties: false }),
+            ]),
+            NOT: t.Union([
+              Self,
+              t.Array(Self, { additionalProperties: false }),
+            ]),
+            OR: t.Array(Self, { additionalProperties: false }),
+          }),
+          { additionalProperties: false },
+        ),
+        t.Partial(
+          t.Object(
+            {
+              id: t.Integer(),
+              tokenHash: t.String(),
+              userId: t.String(),
+              expiresAt: t.Date(),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+      ],
+      { additionalProperties: false },
+    ),
+  { $id: "PasswordResetToken" },
+);
+
+export const PasswordResetTokenSelect = t.Partial(
+  t.Object(
+    {
+      id: t.Boolean(),
+      tokenHash: t.Boolean(),
+      userId: t.Boolean(),
+      expiresAt: t.Boolean(),
+      _count: t.Boolean(),
+    },
+    { additionalProperties: false },
+  ),
+);
+
+export const PasswordResetTokenInclude = t.Partial(
+  t.Object({ _count: t.Boolean() }, { additionalProperties: false }),
+);
+
+export const PasswordResetTokenOrderBy = t.Partial(
+  t.Object(
+    {
+      id: t.Union([t.Literal("asc"), t.Literal("desc")], {
+        additionalProperties: false,
+      }),
+      tokenHash: t.Union([t.Literal("asc"), t.Literal("desc")], {
+        additionalProperties: false,
+      }),
+      userId: t.Union([t.Literal("asc"), t.Literal("desc")], {
+        additionalProperties: false,
+      }),
+      expiresAt: t.Union([t.Literal("asc"), t.Literal("desc")], {
+        additionalProperties: false,
+      }),
+    },
+    { additionalProperties: false },
+  ),
+);
+
+export const PasswordResetToken = t.Composite(
+  [PasswordResetTokenPlain, PasswordResetTokenRelations],
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenInputCreate = t.Composite(
+  [PasswordResetTokenPlainInputCreate, PasswordResetTokenRelationsInputCreate],
+  { additionalProperties: false },
+);
+
+export const PasswordResetTokenInputUpdate = t.Composite(
+  [PasswordResetTokenPlainInputUpdate, PasswordResetTokenRelationsInputUpdate],
+  { additionalProperties: false },
+);
