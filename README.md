@@ -1,3 +1,8 @@
+# ---
+this repo is outdated and does not adhere to modern Elysia standards.
+# ---
+
+
 # bun-elysia-modular_auth
 
 A modular authentication template built with **Bun** and **ElysiaJS**, designed as a clean starting point for building scalable APIs with authentication.
